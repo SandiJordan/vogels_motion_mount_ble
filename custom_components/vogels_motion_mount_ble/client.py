@@ -14,17 +14,17 @@ from bleak.backends.device import BLEDevice
 from bleak_retry_connector import BleakClientWithServiceCache, establish_connection
 
 from .const import (
-    CHAR_AUTHENTICATE_UUID,
+    #CHAR_AUTHENTICATE_UUID,
     CHAR_AUTOMOVE_UUID,
     CHAR_CALIBRATE_UUID,
-    CHAR_CHANGE_PIN_UUID,
+    #CHAR_CHANGE_PIN_UUID,
     CHAR_DISABLE_CHANNEL,
     CHAR_DISTANCE_UUID,
     CHAR_FREEZE_UUID,
-    CHAR_MULTI_PIN_FEATURES_UUID,
+    #CHAR_MULTI_PIN_FEATURES_UUID,
     CHAR_NAME_UUID,
     #CHAR_PIN_CHECK_UUID,
-    CHAR_PIN_SETTINGS_UUID,
+    #CHAR_PIN_SETTINGS_UUID,
     CHAR_PRESET_NAMES_UUIDS,
     CHAR_PRESET_UUID,
     CHAR_PRESET_UUIDS,
@@ -121,9 +121,9 @@ class VogelsMotionMountBluetoothClient:
     async def read_freeze_preset_index(self) -> int:
         """Read and return the index of the current freeze preset from the Vogels Motion Mount."""
         return (await self._read(CHAR_FREEZE_UUID))[0]
-
+    """
     async def read_multi_pin_features(self) -> VogelsMotionMountMultiPinFeatures:
-        """Read and return the current multi-pin feature flags from the Vogels Motion Mount."""
+        #Read and return the current multi-pin feature flags from the Vogels Motion Mount.
         data = (await self._read(CHAR_MULTI_PIN_FEATURES_UUID))[0]
         return VogelsMotionMountMultiPinFeatures(
             change_presets=bool(data & (1 << 0)),
@@ -133,17 +133,17 @@ class VogelsMotionMountBluetoothClient:
             change_default_position=bool(data & (1 << 4)),
             start_calibration=bool(data & (1 << 7)),
         )
-
+    """
     async def read_name(self) -> str:
         """Read and return the current name of the Vogels Motion Mount."""
         data = await self._read(CHAR_NAME_UUID)
         return data.decode("utf-8").rstrip("\x00")
-
+    """
     async def read_pin_settings(self) -> VogelsMotionMountPinSettings:
-        """Read and return the current pin settings of the Vogels Motion Mount."""
+        #Read and return the current pin settings of the Vogels Motion Mount.
         data = await self._read(CHAR_PIN_SETTINGS_UUID)
         return VogelsMotionMountPinSettings(int(data[0]))
-
+    """
     async def read_presets(self) -> list[VogelsMotionMountPreset]:
         """Read and return a list of all preset configurations from the Vogels Motion Mount."""
         return [
@@ -228,16 +228,16 @@ class VogelsMotionMountBluetoothClient:
             char_uuid=CHAR_ROTATION_UUID,
             data=int(rotation).to_bytes(2, byteorder="big", signed=True),
         )
-
+    """
     async def set_authorised_user_pin(self, pin: str):
-        """Set the authorised user PIN on the Vogels Motion Mount."""
+        #Set the authorised user PIN on the Vogels Motion Mount.
         assert pin.isdigit()
         assert len(pin) == 4
         await self._write(
             char_uuid=CHAR_CHANGE_PIN_UUID,
             data=int(pin).to_bytes(2, byteorder="little"),
         )
-
+    """
     async def set_automove(self, automove: VogelsMotionMountAutoMoveType):
         """Set the automove type on the Vogels Motion Mount."""
         await self._write(
@@ -252,9 +252,9 @@ class VogelsMotionMountBluetoothClient:
             char_uuid=CHAR_FREEZE_UUID,
             data=bytes([preset_index]),
         )
-
+    """
     async def set_multi_pin_features(self, features: VogelsMotionMountMultiPinFeatures):
-        """Set the multi-pin features on the Vogels Motion Mount."""
+        #Set the multi-pin features on the Vogels Motion Mount.
         value = 0
         value |= int(features.change_presets) << 0
         value |= int(features.change_name) << 1
@@ -266,7 +266,7 @@ class VogelsMotionMountBluetoothClient:
             char_uuid=CHAR_MULTI_PIN_FEATURES_UUID,
             data=bytes([value]),
         )
-
+    """
     async def set_name(self, name: str):
         """Set the name of the Vogels Motion Mount."""
         assert len(name) in range(1, 21)
@@ -299,15 +299,15 @@ class VogelsMotionMountBluetoothClient:
             char_uuid=CHAR_PRESET_NAMES_UUIDS[preset.index],
             data=data[20:].ljust(17, b"\x00"),
         )
-
+    """
     async def set_supervisior_pin(self, pin: str):
-        """Set the supervisior PIN on the Vogels Motion Mount."""
+        #Set the supervisior PIN on the Vogels Motion Mount.
         assert len(pin) == 4
         assert pin.isdigit()
         await self._write(
             char_uuid=CHAR_CHANGE_PIN_UUID, data=_encode_supervisior_pin(int(pin))
         )
-
+    """
     async def set_tv_width(self, width: int):
         """Set the width of the TV in cm on the Vogels Motion Mount."""
         assert width in range(1, 244)
@@ -481,11 +481,11 @@ async def _get_auth_status(
         cooldown=max(0, 3 * (struct.unpack("<I", _auth_info)[0]) - 10),
     )
 """
-
+"""
 async def _read_multi_pin_features_directly(
     client: BleakClient,
 ) -> VogelsMotionMountMultiPinFeatures:
-    """Read multi pin features directly without connecting first."""
+    #Read multi pin features directly without connecting first.
     data = (await client.read_gatt_char(CHAR_MULTI_PIN_FEATURES_UUID))[0]
     return VogelsMotionMountMultiPinFeatures(
         change_presets=bool(data & (1 << 0)),
@@ -495,7 +495,7 @@ async def _read_multi_pin_features_directly(
         change_default_position=bool(data & (1 << 4)),
         start_calibration=bool(data & (1 << 7)),
     )
-
+"""
 
 def _encode_supervisior_pin(pin: int) -> bytes:
     return bytes([pin & 0xFF, (((pin >> 8) & 0xFF) + 0x40) & 0xFF])
