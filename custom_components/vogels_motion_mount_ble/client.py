@@ -23,7 +23,7 @@ from .const import (
     CHAR_FREEZE_UUID,
     CHAR_MULTI_PIN_FEATURES_UUID,
     CHAR_NAME_UUID,
-    CHAR_PIN_CHECK_UUID,
+    #CHAR_PIN_CHECK_UUID,
     CHAR_PIN_SETTINGS_UUID,
     CHAR_PRESET_NAMES_UUIDS,
     CHAR_PRESET_UUID,
@@ -335,11 +335,11 @@ class VogelsMotionMountBluetoothClient:
                 disconnected_callback=self._handle_disconnect,
             )
 
-            pers = await get_permissions(client, self._pin)
-            _LOGGER.debug("Connected with permissions %s", pers)
+            # pers = await get_permissions(client, self._pin)
+            # _LOGGER.debug("Connected with permissions %s", pers)
             self._session_data = _VogelsMotionMountSessionData(
                 client=client,
-                permissions=pers,
+                #permissions=pers,
             )
             await self._setup_notifications(client)
             self._permission_callback(self._session_data.permissions)
@@ -410,11 +410,11 @@ class VogelsMotionMountBluetoothClient:
     # region Permission
     # -------------------------------
 
-
+"""
 async def get_permissions(
     client: BleakClient, pin: int | None
 ) -> VogelsMotionMountPermissions:
-    """Check permissions by evaluating auth_type and reading multi pin features only if necessary."""
+    #Check permissions by evaluating auth_type and reading multi pin features only if necessary.
     max_auth_status = await _get_max_auth_status(client, pin)
     if max_auth_status.auth_type == VogelsMotionMountAuthenticationType.Full:
         return VogelsMotionMountPermissions(
@@ -435,12 +435,12 @@ async def get_permissions(
     return VogelsMotionMountPermissions(
         max_auth_status, False, False, False, False, False, False, False
     )
-
-
+"""
+"""
 async def _get_max_auth_status(
     client: BleakClient, pin: int | None
 ) -> VogelsMotionMountAuthenticationStatus:
-    """Check auth status by sending pin and checking auth data afterwards."""
+    #Check auth status by sending pin and checking auth data afterwards.
     # if there is no pin it's not possible to authenticate, use the current data
     if not pin:
         return await _get_auth_status(client)
@@ -456,12 +456,12 @@ async def _get_max_auth_status(
     authorised_user_pin_data = pin.to_bytes(2, "little")
     await client.write_gatt_char(CHAR_AUTHENTICATE_UUID, authorised_user_pin_data)
     return await _get_auth_status(client)
-
-
+"""
+"""
 async def _get_auth_status(
     client: BleakClient,
 ) -> VogelsMotionMountAuthenticationStatus:
-    """Read the auth type for the current user."""
+    # Read the auth type for the current user.
     # read pin permission
     _auth_info = await client.read_gatt_char(CHAR_PIN_CHECK_UUID)
     _LOGGER.debug("_get_auth_status %s", _auth_info)
@@ -480,7 +480,7 @@ async def _get_auth_status(
         auth_type=VogelsMotionMountAuthenticationType.Wrong,
         cooldown=max(0, 3 * (struct.unpack("<I", _auth_info)[0]) - 10),
     )
-
+"""
 
 async def _read_multi_pin_features_directly(
     client: BleakClient,
