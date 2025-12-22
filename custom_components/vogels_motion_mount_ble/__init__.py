@@ -116,6 +116,23 @@ async def async_setup_entry(
 
     try:
         await coordinator.async_config_entry_first_refresh()
+
+        hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = coordinator
+
+        # Check if user needs to re-authenticate
+        permissions = coordinator.data.permissions
+        if (
+            permissions is not None
+            and permissions.auth_status is not None
+            and permissions.auth_status.auth_type == VogelsMotionMountAuthenticationType.Wrong
+        ):
+            raise ConfigEntryAuthFailed(
+                translation_key="error_invalid_authentication"
+            )
+
+        await hass.config_entries.async_forward_entry_setups(config_entry, PLATFORMS)
+
+        return True
     except ConfigEntryAuthFailed as err:
         # do not reload if setup failed
         _LOGGER.debug("async_setup_entry ConfigEntryAuthFailed %s", str(err))

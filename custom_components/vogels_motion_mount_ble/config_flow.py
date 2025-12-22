@@ -25,9 +25,7 @@ from homeassistant.helpers.selector import (
 )
 from homeassistant.util import dt as dt_util
 
-from .client import get_permissions
-from .const import CONF_ERROR, CONF_MAC, CONF_NAME, CONF_PIN, DOMAIN
-from .data import VogelsMotionMountAuthenticationType
+from .const import CONF_ERROR, CONF_MAC, CONF_NAME, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -60,13 +58,13 @@ class VogelsMotionMountConfigFlow(ConfigFlow, domain=DOMAIN):
         # Setup Values
         mac = UNDEFINED
         name = UNDEFINED
-        pin = UNDEFINED
+        #pin = UNDEFINED
 
         # Read values from data if provided
         if data is not None:
             mac = data.get(CONF_MAC, UNDEFINED)
             name = data.get(CONF_NAME, f"Vogel's MotionMount ({mac})")
-            pin = data.get(CONF_PIN, UNDEFINED)
+            #pin = data.get(CONF_PIN, UNDEFINED)
 
         # If discovery_info is set, use its address as the MAC and for the name if not provided
         if self._discovery_info is not None:
@@ -91,18 +89,6 @@ class VogelsMotionMountConfigFlow(ConfigFlow, domain=DOMAIN):
                         multiline=False,
                         read_only=not name_editable,
                     )
-                ),
-                vol.Optional(CONF_PIN, default=pin): vol.All(
-                    NumberSelector(
-                        NumberSelectorConfig(
-                            min=0,
-                            max=9999,
-                            step=1,
-                            mode=NumberSelectorMode.BOX,
-                            read_only=False,
-                        )
-                    ),
-                    vol.Coerce(int),
                 ),
             },
         )
@@ -135,34 +121,10 @@ class VogelsMotionMountConfigFlow(ConfigFlow, domain=DOMAIN):
                 device=device,
                 name=device.name or "Unknown Device",
             )
-
-            _LOGGER.debug("await get_permissions")
-            permissions = await get_permissions(client, user_input.get(CONF_PIN))
-            _LOGGER.debug("get_permission returned %s", permissions)
-            if (
-                permissions.auth_status.auth_type
-                == VogelsMotionMountAuthenticationType.Wrong
-            ):
-                if (
-                    permissions.auth_status.cooldown
-                    and permissions.auth_status.cooldown > 0
-                ):
-                    retry_time = dt_util.now() + timedelta(
-                        seconds=permissions.auth_status.cooldown
-                    )
-                    return ValidationResult(
-                        errors={CONF_ERROR: "error_invalid_authentication_cooldown"},
-                        description_placeholders={
-                            "retry_at": retry_time.strftime("%Y-%m-%d %H:%M:%S")
-                        },
-                    )
-                return ValidationResult({CONF_ERROR: "error_invalid_authentication"})
-
-            _LOGGER.debug(
-                "Successfully tested connection to %s pers %s",
-                user_input[CONF_MAC],
-                permissions,
-            )
+            _LOGGER.debug("Successfully connected to %s", user_input[CONF_MAC])
+            # Device doesn't support PIN/auth — no further auth checks required.
+            # Disconnect immediately after verification to avoid resource leaks.
+            await client.disconnect()
         except Exception as err:  # noqa: BLE001
             _LOGGER.error("Setting Exception: %s", err)
             return ValidationResult(

@@ -144,8 +144,9 @@ class VogelsMotionMountBleCoordinator(DataUpdateCoordinator[VogelsMotionMountDat
         await self._call(self._client.request_rotation, rotation)
         self.async_set_updated_data(replace(self.data, requested_rotation=rotation))
 
+    """
     async def set_authorised_user_pin(self, pin: str):
-        """Set or remove pin for authorised user."""
+        #Set or remove pin for authorised user.
         await self._call(self._client.set_authorised_user_pin, pin)
         remove = pin == "0000"
         pin_setting = await self._call(self._client.read_pin_settings)
@@ -169,6 +170,7 @@ class VogelsMotionMountBleCoordinator(DataUpdateCoordinator[VogelsMotionMountDat
             )
         await self._call(self.disconnect)
         self.async_set_updated_data(await self._async_update_data())
+    """
 
     async def set_automove(self, automove: VogelsMotionMountAutoMoveType):
         """Set type of automove."""
@@ -200,8 +202,9 @@ class VogelsMotionMountBleCoordinator(DataUpdateCoordinator[VogelsMotionMountDat
                 },
             )
 
+    """
     async def set_multi_pin_features(self, features: VogelsMotionMountMultiPinFeatures):
-        """Set features the authorised user is eligible to change."""
+        #Set features the authorised user is eligible to change.
         await self._call(self._client.set_multi_pin_features, features)
         actual = await self._call(self._client.read_multi_pin_features)
         self.async_set_updated_data(replace(self.data, multi_pin_features=actual))
@@ -214,21 +217,7 @@ class VogelsMotionMountBleCoordinator(DataUpdateCoordinator[VogelsMotionMountDat
                     "actual": str(actual),
                 },
             )
-
-    async def set_name(self, name: str):
-        """Set name of the Vogels Motion Mount."""
-        await self._call(self._client.set_name, name)
-        actual = await self._call(self._client.read_name)
-        self.async_set_updated_data(replace(self.data, name=actual))
-        if actual != name:
-            raise ServiceValidationError(
-                translation_domain=DOMAIN,
-                translation_key="not_saved_name",
-                translation_placeholders={
-                    "expected": str(name),
-                    "actual": str(actual),
-                },
-            )
+    """
 
     async def set_preset(self, preset: VogelsMotionMountPreset):
         """Set the data of a preset."""
@@ -247,8 +236,9 @@ class VogelsMotionMountBleCoordinator(DataUpdateCoordinator[VogelsMotionMountDat
                 },
             )
 
+    """
     async def set_supervisior_pin(self, pin: str):
-        """Set or remove pin for a supervisior."""
+        #Set or remove pin for a supervisior.
         await self._call(self._client.set_supervisior_pin, pin)
         remove = pin == "0000"
         pin_setting = await self._call(self._client.read_pin_settings)
@@ -272,9 +262,11 @@ class VogelsMotionMountBleCoordinator(DataUpdateCoordinator[VogelsMotionMountDat
             )
         await self.disconnect()
         self.async_set_updated_data(await self._async_update_data())
+    """
 
+    """
     async def set_tv_width(self, width: int):
-        """Set the width of the tv."""
+        #Set the width of the tv.
         await self._call(self._client.set_tv_width, width)
         actual = await self._call(self._client.read_tv_width)
         self.async_set_updated_data(replace(self.data, tv_width=actual))
@@ -287,6 +279,7 @@ class VogelsMotionMountBleCoordinator(DataUpdateCoordinator[VogelsMotionMountDat
                     "actual": str(actual),
                 },
             )
+    """
 
     # -------------------------------
     # region Notifications
@@ -328,12 +321,12 @@ class VogelsMotionMountBleCoordinator(DataUpdateCoordinator[VogelsMotionMountDat
                 connected=self.data.connected if self.data is not None else False,
                 distance=await self._client.read_distance(),
                 freeze_preset_index=await self._client.read_freeze_preset_index(),
-                multi_pin_features=await self._client.read_multi_pin_features(),
-                name=await self._client.read_name(),
-                pin_setting=await self._client.read_pin_settings(),
+                multi_pin_features=None,
+                name=None,
+                pin_setting=None,
                 presets=await self._client.read_presets(),
                 rotation=await self._client.read_rotation(),
-                tv_width=await self._client.read_tv_width(),
+                tv_width=65,
                 versions=await self._client.read_versions(),
                 permissions=permissions,
             )

@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Callable
 from dataclasses import dataclass
+from typing import Optional
 import logging
 import struct
 
@@ -22,8 +23,8 @@ from .const import (
     CHAR_DISTANCE_UUID,
     CHAR_FREEZE_UUID,
     #CHAR_MULTI_PIN_FEATURES_UUID,
-    CHAR_NAME_UUID,
-    CHAR_PIN_CHECK_UUID, # disabled
+    #CHAR_NAME_UUID,
+    #CHAR_PIN_CHECK_UUID,
     #CHAR_PIN_SETTINGS_UUID,
     CHAR_PRESET_NAMES_UUIDS,
     CHAR_PRESET_UUID,
@@ -31,18 +32,15 @@ from .const import (
     CHAR_ROTATION_UUID,
     CHAR_VERSIONS_CEB_UUID,
     CHAR_VERSIONS_MCP_UUID,
-    CHAR_WIDTH_UUID,
 )
 from .data import (
-    VogelsMotionMountAuthenticationStatus,
-    VogelsMotionMountAuthenticationType,
+    #VogelsMotionMountAuthenticationStatus,
+    #VogelsMotionMountAuthenticationType,
     VogelsMotionMountAutoMoveType,
-    VogelsMotionMountMultiPinFeatures,
-    VogelsMotionMountPermissions,
-    VogelsMotionMountPinSettings,
     VogelsMotionMountPreset,
     VogelsMotionMountPresetData,
     VogelsMotionMountVersions,
+    VogelsMotionMountPermissions,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -74,12 +72,12 @@ class VogelsMotionMountBluetoothClient:
 
     def __init__(
         self,
-        pin: int | None,
-        device: BLEDevice,
-        permission_callback: Callable[[VogelsMotionMountPermissions], None],
-        connection_callback: Callable[[bool], None],
-        distance_callback: Callable[[int], None],
-        rotation_callback: Callable[[int], None],
+        pin: int | None = None,
+        device: BLEDevice = None,
+        permission_callback: Callable[[Optional[VogelsMotionMountPermissions]], None] = None,
+        connection_callback: Callable[[bool], None] = None,
+        distance_callback: Callable[[int], None] = None,
+        rotation_callback: Callable[[int], None] = None,
     ) -> None:
         """Initialize the Vogels Motion Mount Bluetooth client.
 
@@ -91,8 +89,11 @@ class VogelsMotionMountBluetoothClient:
             distance_callback: Callback for distance updates.
             rotation_callback: Callback for rotation updates.
         """
+        # keep the pin around for compatibility/future use
         self._pin = pin
         self._device = device
+        if self._device is None:
+            raise ValueError("device must be provided to VogelsMotionMountBluetoothClient")
         self._connection_callback = connection_callback
         self._permission_callback = permission_callback
         self._distance_callback = distance_callback
@@ -105,22 +106,44 @@ class VogelsMotionMountBluetoothClient:
     # -------------------------------
 
     async def read_permissions(self) -> VogelsMotionMountPermissions:
-        """Read and return the current permissions for the connected Vogels Motion Mount."""
-        return (await self._connect()).permissions
+        """Read and return the current permissions for the connected Vogels Motion Mount.
+        If no explicit permissions object is present, return a permissive default."""
+        session = await self._connect()
+        return session.permissions or _make_full_permissions()
 
     async def read_automove(self) -> VogelsMotionMountAutoMoveType:
         """Read and return the current automove type for the Vogels Motion Mount."""
-        data = await self._read(CHAR_AUTOMOVE_UUID)
-        return VogelsMotionMountAutoMoveType(int.from_bytes(data, "big"))
+        try:
+            data = await self._read(CHAR_AUTOMOVE_UUID)
+            if not data:
+                raise RuntimeError("Empty automove characteristic")
+            return VogelsMotionMountAutoMoveType(int.from_bytes(data, "big"))
+        except Exception as err:
+            _LOGGER.exception("Failed to read automove: %s", err)
+            raise RuntimeError(f"Failed to read automove: {err}") from err
 
     async def read_distance(self) -> int:
         """Read and return the current distance value from the Vogels Motion Mount."""
-        data = await self._read(CHAR_DISTANCE_UUID)
-        return int.from_bytes(data, "big")
+        try:
+            data = await self._read(CHAR_DISTANCE_UUID)
+            if not data:
+                raise RuntimeError("Empty distance characteristic")
+            return int.from_bytes(data, "big")
+        except Exception as err:
+            _LOGGER.exception("Failed to read distance: %s", err)
+            raise RuntimeError(f"Failed to read distance: {err}") from err
 
     async def read_freeze_preset_index(self) -> int:
         """Read and return the index of the current freeze preset from the Vogels Motion Mount."""
-        return (await self._read(CHAR_FREEZE_UUID))[0]
+        try:
+            data = await self._read(CHAR_FREEZE_UUID)
+            if not data:
+                raise RuntimeError("Empty freeze preset characteristic")
+            return data[0]
+        except Exception as err:
+            _LOGGER.exception("Failed to read freeze preset index: %s", err)
+            raise RuntimeError(f"Failed to read freeze preset index: {err}") from err
+
     """
     async def read_multi_pin_features(self) -> VogelsMotionMountMultiPinFeatures:
         #Read and return the current multi-pin feature flags from the Vogels Motion Mount.
@@ -134,16 +157,6 @@ class VogelsMotionMountBluetoothClient:
             start_calibration=bool(data & (1 << 7)),
         )
     """
-    async def read_name(self) -> str:
-        """Read and return the current name of the Vogels Motion Mount."""
-        data = await self._read(CHAR_NAME_UUID)
-        return data.decode("utf-8").rstrip("\x00")
-    """
-    async def read_pin_settings(self) -> VogelsMotionMountPinSettings:
-        #Read and return the current pin settings of the Vogels Motion Mount.
-        data = await self._read(CHAR_PIN_SETTINGS_UUID)
-        return VogelsMotionMountPinSettings(int(data[0]))
-    """
     async def read_presets(self) -> list[VogelsMotionMountPreset]:
         """Read and return a list of all preset configurations from the Vogels Motion Mount."""
         return [
@@ -152,44 +165,70 @@ class VogelsMotionMountBluetoothClient:
 
     async def read_preset(self, index: int) -> VogelsMotionMountPreset:
         """Read and return the preset configuration at the specified index."""
-        data = await self._read(CHAR_PRESET_UUIDS[index]) + await self._read(
-            CHAR_PRESET_NAMES_UUIDS[index]
-        )
-        if data[0] != 0:
-            data = VogelsMotionMountPresetData(
-                distance=max(0, min(int.from_bytes(data[1:3], "big"), 100)),
-                name=data[5:].decode("utf-8").rstrip("\x00"),
-                rotation=max(
-                    -100, min(int.from_bytes(data[3:5], "big", signed=True), 100)
-                ),
+        try:
+            data = await self._read(CHAR_PRESET_UUIDS[index]) + await self._read(
+                CHAR_PRESET_NAMES_UUIDS[index]
             )
-        else:
-            data = None
+            if data[0] != 0:
+                data = VogelsMotionMountPresetData(
+                    distance=max(0, min(int.from_bytes(data[1:3], "big"), 100)),
+                    name=data[5:].decode("utf-8").rstrip("\x00"),
+                    rotation=max(
+                        -100, min(int.from_bytes(data[3:5], "big", signed=True), 100)
+                    ),
+                )
+            else:
+                data = None
 
-        return VogelsMotionMountPreset(
-            index=index,
-            data=data,
-        )
+            return VogelsMotionMountPreset(
+                index=index,
+                data=data,
+            )
+        except Exception as err:
+            _LOGGER.exception("Failed to read preset %d: %s", index, err)
+            raise RuntimeError(f"Failed to read preset {index}: {err}") from err
 
     async def read_rotation(self) -> int:
         """Read and return the current rotation value from the Vogels Motion Mount."""
-        data = await self._read(CHAR_ROTATION_UUID)
-        return int.from_bytes(data, "big")
-
-    async def read_tv_width(self) -> int:
-        """Read and return the width of the TV from the Vogels Motion Mount."""
-        return (await self._read(CHAR_WIDTH_UUID))[0]
+        try:
+            data = await self._read(CHAR_ROTATION_UUID)
+            if not data:
+                raise RuntimeError("Empty rotation characteristic")
+            # Rotation is signed on the device
+            return int.from_bytes(data, "big", signed=True)
+        except Exception as err:
+            _LOGGER.exception("Failed to read rotation: %s", err)
+            raise RuntimeError(f"Failed to read rotation: {err}") from err
 
     async def read_versions(self) -> VogelsMotionMountVersions:
         """Read and return the firmware and hardware version information from the Vogels Motion Mount."""
-        data_ceb = await self._read(CHAR_VERSIONS_CEB_UUID)
-        data_mcp = await self._read(CHAR_VERSIONS_MCP_UUID)
-        return VogelsMotionMountVersions(
-            ceb_bl_version=".".join(str(b) for b in data_ceb),
-            mcp_hw_version=".".join(str(b) for b in data_mcp[:3]),
-            mcp_bl_version=".".join(str(b) for b in data_mcp[3:5]),
-            mcp_fw_version=".".join(str(b) for b in data_mcp[5:7]),
-        )
+        try:
+            try:
+                data_ceb = await self._read(CHAR_VERSIONS_CEB_UUID)
+            except Exception as err:
+                _LOGGER.debug("Failed to read CEB versions (characteristic may not be supported): %s", err)
+                data_ceb = None
+            
+            try:
+                data_mcp = await self._read(CHAR_VERSIONS_MCP_UUID)
+            except Exception as err:
+                _LOGGER.debug("Failed to read MCP versions (characteristic may not be supported): %s", err)
+                data_mcp = None
+            
+            return VogelsMotionMountVersions(
+                ceb_bl_version=".".join(str(b) for b in data_ceb) if data_ceb else "Unknown",
+                mcp_hw_version=".".join(str(b) for b in data_mcp[:3]) if data_mcp else "Unknown",
+                mcp_bl_version=".".join(str(b) for b in data_mcp[3:5]) if data_mcp else "Unknown",
+                mcp_fw_version=".".join(str(b) for b in data_mcp[5:7]) if data_mcp else "Unknown",
+            )
+        except Exception as err:
+            _LOGGER.debug("Failed to read versions: %s", err)
+            return VogelsMotionMountVersions(
+                ceb_bl_version="Unknown",
+                mcp_hw_version="Unknown",
+                mcp_bl_version="Unknown",
+                mcp_fw_version="Unknown",
+            )
 
     # -------------------------------
     # region Control
@@ -198,11 +237,19 @@ class VogelsMotionMountBluetoothClient:
     async def disconnect(self):
         """Disconnect from the Vogels Motion Mount BLE device if connected."""
         if self._session_data:
-            await self._session_data.client.disconnect()
+            try:
+                await self._session_data.client.disconnect()
+            except Exception as err:
+                _LOGGER.debug("Error while disconnecting: %s", err)
+            finally:
+                self._session_data = None
+                if self._connection_callback:
+                    self._connection_callback(False)
 
     async def select_preset(self, preset_index: int):
         """Select the preset at the given index on the Vogels Motion Mount."""
-        assert preset_index in range(8)
+        # Only allow indexes that match the available preset characteristic lists
+        assert preset_index in range(len(CHAR_PRESET_UUIDS))
         await self._write(CHAR_PRESET_UUID, bytes([preset_index]))
 
     async def start_calibration(self):
@@ -267,17 +314,9 @@ class VogelsMotionMountBluetoothClient:
             data=bytes([value]),
         )
     """
-    async def set_name(self, name: str):
-        """Set the name of the Vogels Motion Mount."""
-        assert len(name) in range(1, 21)
-        await self._write(
-            char_uuid=CHAR_NAME_UUID,
-            data=bytearray(name.encode("utf-8"))[:20].ljust(20, b"\x00"),
-        )
-
     async def set_preset(self, preset: VogelsMotionMountPreset):
         """Set the data of a preset on the Vogels Motion Mount."""
-        assert preset.index in range(7)
+        assert preset.index in range(len(CHAR_PRESET_UUIDS))
         if preset.data:
             assert preset.data.distance in range(101)
             assert preset.data.rotation in range(-100, 101)
@@ -308,13 +347,6 @@ class VogelsMotionMountBluetoothClient:
             char_uuid=CHAR_CHANGE_PIN_UUID, data=_encode_supervisior_pin(int(pin))
         )
     """
-    async def set_tv_width(self, width: int):
-        """Set the width of the TV in cm on the Vogels Motion Mount."""
-        assert width in range(1, 244)
-        await self._write(
-            char_uuid=CHAR_WIDTH_UUID,
-            data=bytes([width]),
-        )
 
     # -------------------------------
     # region Connection
@@ -328,55 +360,83 @@ class VogelsMotionMountBluetoothClient:
                 _LOGGER.debug("Already connected")
                 return self._session_data
 
-            client = await establish_connection(
-                client_class=BleakClientWithServiceCache,
-                device=self._device,
-                name=self._device.name or "Unknown Device",
-                disconnected_callback=self._handle_disconnect,
-            )
+            try:
+                client = await establish_connection(
+                    client_class=BleakClientWithServiceCache,
+                    device=self._device,
+                    name=self._device.name or "Unknown Device",
+                    disconnected_callback=self._handle_disconnect,
+                )
+            except Exception as err:
+                _LOGGER.exception("Failed to connect to %s: %s", self._device.address, err)
+                raise ConnectionError(f"Failed to connect to {self._device.address}: {err}") from err
 
-            # pers = await get_permissions(client, self._pin)
-            # _LOGGER.debug("Connected with permissions %s", pers)
+            # Device doesn't support PIN/auth — give full permissive permissions so writes work
             self._session_data = _VogelsMotionMountSessionData(
                 client=client,
-                #permissions=pers,
+                permissions=_make_full_permissions(),
             )
-            await self._setup_notifications(client)
-            self._permission_callback(self._session_data.permissions)
-            self._connection_callback(self._session_data.client.is_connected)
+            # Try to setup notifications but don't fail the entire connect on notification errors.
+            try:
+                await self._setup_notifications(client)
+            except Exception as err:  # pragma: no cover - runtime BLE issues
+                _LOGGER.warning("Failed to setup notifications: %s", err)
+            if self._permission_callback:
+                self._permission_callback(self._session_data.permissions)
+            if self._connection_callback:
+                self._connection_callback(self._session_data.client.is_connected)
             return self._session_data
 
     def _handle_disconnect(self, _: BleakClient):
         """Reset session and call connection callback."""
         self._session_data = None
-        self._connection_callback(False)
+        if self._connection_callback:
+            self._connection_callback(False)
 
     async def _read(self, char_uuid: str) -> bytes:
         """Read data by first connecting and then returning the read data."""
         session_data = await self._connect()
-        data = await session_data.client.read_gatt_char(char_uuid)
-        _LOGGER.debug("Read data %s | %s", char_uuid, data)
-        return data
+        try:
+            data = await session_data.client.read_gatt_char(char_uuid)
+            _LOGGER.debug("Read data %s | %s", char_uuid, data)
+            return data
+        except Exception as err:
+            _LOGGER.exception("Failed to read characteristic %s: %s", char_uuid, err)
+            raise RuntimeError(f"Failed to read characteristic {char_uuid}: {err}") from err
 
     async def _write(self, char_uuid: str, data: bytes):
         """Writes data by first connecting, checking permission status and then writing data. Also reads updated data that is then returned to be verified."""
         session_data = await self._connect()
         if not self._has_write_permission(char_uuid, session_data.permissions):
-            raise VogelsMotionMountClientAuthenticationError(cooldown=0)
-        await session_data.client.write_gatt_char(char_uuid, data)
-        _LOGGER.debug("Wrote data %s | %s", char_uuid, data)
+            # Provide a clearer message to make debugging easier
+            raise VogelsMotionMountClientAuthenticationError(
+                cooldown=0, message=f"Write denied for char {char_uuid}"
+            )
+        try:
+            await session_data.client.write_gatt_char(char_uuid, data)
+            _LOGGER.debug("Wrote data %s | %s", char_uuid, data)
+        except Exception as err:
+            _LOGGER.exception("Failed to write characteristic %s: %s", char_uuid, err)
+            raise RuntimeError(f"Failed to write characteristic {char_uuid}: {err}") from err
 
     def _has_write_permission(
-        self, char_uuid: str, permissions: VogelsMotionMountPermissions
+        self, char_uuid: str, permissions: Optional[VogelsMotionMountPermissions]
     ) -> bool:
-        return (
-            (char_uuid == CHAR_PRESET_UUIDS and permissions.change_presets)
-            or (char_uuid == CHAR_PRESET_NAMES_UUIDS and permissions.change_presets)
-            or (char_uuid == CHAR_NAME_UUID and permissions.change_name)
-            or (char_uuid == CHAR_DISABLE_CHANNEL and permissions.disable_channel)
-            or (
-                char_uuid == CHAR_FREEZE_UUID and permissions.change_tv_on_off_detection
+        # If no permissions object is provided assume device is permissive (no auth)
+        if permissions is None:
+            return True
+
+        # Evaluate allowed writes: presets (single or list), names, disable channel, freeze,
+        # calibrate or global change_settings permission.
+        return bool(
+            (
+                (char_uuid in CHAR_PRESET_UUIDS)
+                or (char_uuid in CHAR_PRESET_NAMES_UUIDS)
+                or (char_uuid == CHAR_PRESET_UUID)
             )
+            and permissions.change_presets
+            or (char_uuid == CHAR_DISABLE_CHANNEL and permissions.disable_channel)
+            or (char_uuid == CHAR_FREEZE_UUID and permissions.change_tv_on_off_detection)
             or (char_uuid == CHAR_CALIBRATE_UUID and permissions.start_calibration)
             or permissions.change_settings
         )
@@ -387,121 +447,71 @@ class VogelsMotionMountBluetoothClient:
 
     async def _setup_notifications(self, client: BleakClient):
         """Setup notifications for distance and rotation changes."""
-        await client.start_notify(
-            char_specifier=CHAR_DISTANCE_UUID,
-            callback=self._handle_distance_change,
-        )
-        await client.start_notify(
-            char_specifier=CHAR_ROTATION_UUID,
-            callback=self._handle_rotation_change,
-        )
+        # Start notifications individually and log but do not raise on failure
+        try:
+            await client.start_notify(
+                char_specifier=CHAR_DISTANCE_UUID,
+                callback=self._handle_distance_change,
+            )
+        except Exception as err:
+            _LOGGER.warning("Failed to start distance notifications: %s", err)
+        try:
+            await client.start_notify(
+                char_specifier=CHAR_ROTATION_UUID,
+                callback=self._handle_rotation_change,
+            )
+        except Exception as err:
+            _LOGGER.warning("Failed to start rotation notifications: %s", err)
 
     def _handle_distance_change(
         self, _: BleakGATTCharacteristic | None, data: bytearray
     ):
-        self._distance_callback(int.from_bytes(data, "big"))
+        if self._distance_callback:
+            self._distance_callback(int.from_bytes(data, "big"))
 
     def _handle_rotation_change(
         self, _: BleakGATTCharacteristic | None, data: bytearray
     ):
-        self._rotation_callback(int.from_bytes(data, "big", signed=True))
+        if self._rotation_callback:
+            self._rotation_callback(int.from_bytes(data, "big", signed=True))
 
     # -------------------------------
     # region Permission
     # -------------------------------
 
-"""
-async def get_permissions(
-    client: BleakClient, pin: int | None
-) -> VogelsMotionMountPermissions:
-    #Check permissions by evaluating auth_type and reading multi pin features only if necessary.
-    max_auth_status = await _get_max_auth_status(client, pin)
-    if max_auth_status.auth_type == VogelsMotionMountAuthenticationType.Full:
+
+def _make_full_permissions():
+    """Return a permissive permissions object for devices without auth.
+    Try constructing the real VogelsMotionMountPermissions if signature allows,
+    otherwise fall back to a SimpleNamespace with the expected attributes.
+    """
+    try:
+        # Best-effort: try to construct with named booleans (common signature)
         return VogelsMotionMountPermissions(
-            max_auth_status, True, True, True, True, True, True, True
+            auth_status=None,
+            change_settings=True,
+            change_default_position=True,
+            change_name=True,
+            change_presets=True,
+            change_tv_on_off_detection=True,
+            disable_channel=True,
+            start_calibration=True,
         )
-    if max_auth_status.auth_type == VogelsMotionMountAuthenticationType.Control:
-        multi_pin_features = await _read_multi_pin_features_directly(client)
-        return VogelsMotionMountPermissions(
-            auth_status=max_auth_status,
-            change_settings=False,
-            change_default_position=multi_pin_features.change_default_position,
-            change_name=multi_pin_features.change_name,
-            change_presets=multi_pin_features.change_presets,
-            change_tv_on_off_detection=multi_pin_features.change_tv_on_off_detection,
-            disable_channel=multi_pin_features.disable_channel,
-            start_calibration=multi_pin_features.start_calibration,
+    except Exception:
+        from types import SimpleNamespace
+
+        return SimpleNamespace(
+            change_settings=True,
+            change_default_position=True,
+            change_name=True,
+            change_presets=True,
+            change_tv_on_off_detection=True,
+            disable_channel=True,
+            start_calibration=True,
         )
-    return VogelsMotionMountPermissions(
-        max_auth_status, False, False, False, False, False, False, False
-    )
-"""
-"""
-async def _get_max_auth_status(
-    client: BleakClient, pin: int | None
-) -> VogelsMotionMountAuthenticationStatus:
-    #Check auth status by sending pin and checking auth data afterwards.
-    # if there is no pin it's not possible to authenticate, use the current data
-    if not pin:
-        return await _get_auth_status(client)
-
-    # first try to authenticate as supervisior, if it doesn't work then authorised user
-    supervisior_pin_data = _encode_supervisior_pin(pin)
-    await client.write_gatt_char(CHAR_AUTHENTICATE_UUID, supervisior_pin_data)
-    current_auth_type = await _get_auth_status(client)
-
-    if current_auth_type.auth_type != VogelsMotionMountAuthenticationType.Wrong:
-        return current_auth_type
-
-    authorised_user_pin_data = pin.to_bytes(2, "little")
-    await client.write_gatt_char(CHAR_AUTHENTICATE_UUID, authorised_user_pin_data)
-    return await _get_auth_status(client)
-"""
-"""
-async def _get_auth_status(
-    client: BleakClient,
-) -> VogelsMotionMountAuthenticationStatus:
-    # Read the auth type for the current user.
-    # read pin permission
-    _auth_info = await client.read_gatt_char(CHAR_PIN_CHECK_UUID)
-    _LOGGER.debug("_get_auth_status %s", _auth_info)
-    if _auth_info.startswith(b"\x80\x80"):
-        return VogelsMotionMountAuthenticationStatus(
-            auth_type=VogelsMotionMountAuthenticationType.Full,
-            cooldown=None,
-        )
-    if _auth_info.startswith(b"\x80"):
-        return VogelsMotionMountAuthenticationStatus(
-            auth_type=VogelsMotionMountAuthenticationType.Control,
-            cooldown=None,
-        )
-    # check if there was a wrong pin and therefore cooldown is active
-    return VogelsMotionMountAuthenticationStatus(
-        auth_type=VogelsMotionMountAuthenticationType.Wrong,
-        cooldown=max(0, 3 * (struct.unpack("<I", _auth_info)[0]) - 10),
-    )
-"""
-"""
-async def _read_multi_pin_features_directly(
-    client: BleakClient,
-) -> VogelsMotionMountMultiPinFeatures:
-    #Read multi pin features directly without connecting first.
-    data = (await client.read_gatt_char(CHAR_MULTI_PIN_FEATURES_UUID))[0]
-    return VogelsMotionMountMultiPinFeatures(
-        change_presets=bool(data & (1 << 0)),
-        change_name=bool(data & (1 << 1)),
-        disable_channel=bool(data & (1 << 2)),
-        change_tv_on_off_detection=bool(data & (1 << 3)),
-        change_default_position=bool(data & (1 << 4)),
-        start_calibration=bool(data & (1 << 7)),
-    )
-"""
-
-def _encode_supervisior_pin(pin: int) -> bytes:
-    return bytes([pin & 0xFF, (((pin >> 8) & 0xFF) + 0x40) & 0xFF])
 
 
 @dataclass
 class _VogelsMotionMountSessionData:
     client: BleakClient
-    permissions: VogelsMotionMountPermissions
+    permissions: Optional[VogelsMotionMountPermissions] = None
