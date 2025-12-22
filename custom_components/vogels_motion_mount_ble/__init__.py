@@ -155,26 +155,6 @@ async def async_setup_entry(
             translation_placeholders={"error": repr(err)},
         ) from err
 
-    permissions = coordinator.data.permissions
-    if permissions.auth_status.auth_type == VogelsMotionMountAuthenticationType.Wrong:
-        if permissions.auth_status.cooldown and permissions.auth_status.cooldown > 0:
-            retry_time = dt_util.now() + timedelta(
-                seconds=permissions.auth_status.cooldown
-            )
-            raise ConfigEntryAuthFailed(
-                translation_key="error_invalid_authentication_cooldown",
-                translation_placeholders={
-                    "retry_at": retry_time.strftime("%Y-%m-%d %H:%M:%S")
-                },
-            )
-        raise ConfigEntryAuthFailed(
-            translation_key="error_invalid_authentication",
-        )
-
-    await hass.config_entries.async_forward_entry_setups(config_entry, PLATFORMS)
-
-    return True
-
 
 async def async_reload_entry(
     hass: HomeAssistant, config_entry: VogelsMotionMountBleConfigEntry
@@ -193,8 +173,8 @@ async def async_unload_entry(
     """Unload a config entry."""
     _LOGGER.debug("async_unload_entry")
 
-    entry_data = hass.data[DOMAIN].get(config_entry.entry_id)
-    if entry_data:
+    entry_data = hass.data[DOMAIN].get(config_entry.entry_id, {})
+    if isinstance(entry_data, dict):
         unregister_ble_callback = entry_data.get(BLE_CALLBACK)
         if unregister_ble_callback:
             _LOGGER.debug("unregister_ble_callback")
