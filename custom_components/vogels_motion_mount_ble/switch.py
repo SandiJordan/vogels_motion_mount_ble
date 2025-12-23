@@ -5,12 +5,13 @@ from typing import Any
 
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.const import EntityCategory
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import VogelsMotionMountBleConfigEntry
-from .base import VogelsMotionMountBleBaseEntity
+from .base import VogelsMotionMountBleBaseEntity, VogelsMotionMountBlePresetBaseEntity
 from .coordinator import VogelsMotionMountBleCoordinator
+from .data import VogelsMotionMountPresetData
 
 
 async def async_setup_entry(
@@ -21,16 +22,84 @@ async def async_setup_entry(
     """Set up the RefreshData and SelectPreset buttons."""
     coordinator: VogelsMotionMountBleCoordinator = config_entry.runtime_data
 
-    async_add_entities(
-        [
-            MultiPinFeatureChangePresetsSwitch(coordinator),
-            MultiPinFeatureChangeNameSwitch(coordinator),
-            MultiPinFeatureDisableChannelSwitch(coordinator),
-            MultiPinFeatureChangeTvOnOffDetectionSwitch(coordinator),
-            MultiPinFeatureChangeDefaultPositionSwitch(coordinator),
-            MultiPinFeatureStartCalibrationSwitch(coordinator),
-        ]
-    )
+    switches = [ConnectionSwitch(coordinator)]
+    
+    # Add preset switches for all 7 preset slots
+    switches.extend([PresetSwitch(coordinator, preset_index) for preset_index in range(7)])
+    
+    async_add_entities(switches)
+
+
+class ConnectionSwitch(VogelsMotionMountBleBaseEntity, SwitchEntity):
+    """Switch to control BLE device connection."""
+
+    _attr_unique_id = "connection"
+    _attr_translation_key = "connection"
+    _attr_icon = "mdi:power-plug"
+
+    @property
+    def is_on(self) -> bool:
+        """Return True if device is connected."""
+        return self.coordinator.data.connected
+
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        """Turn on (connect) the device."""
+        await self.coordinator.connect()
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        """Turn off (disconnect) the device."""
+        await self.coordinator.disconnect()
+
+
+class PresetSwitch(VogelsMotionMountBlePresetBaseEntity, SwitchEntity):
+    """Switch to manage preset existence - ON=exists, OFF=doesn't exist."""
+
+    _attr_translation_key = "preset_config"
+    _attr_icon = "mdi:bookmark"
+    _attr_entity_category = EntityCategory.CONFIG
+
+    def __init__(
+        self,
+        coordinator: VogelsMotionMountBleCoordinator,
+        preset_index: int,
+    ) -> None:
+        """Initialize unique_id because it's derived from preset_index."""
+        super().__init__(
+            coordinator=coordinator,
+            preset_index=preset_index,
+        )
+        self._attr_unique_id = f"preset_{preset_index}"
+
+    @property
+    def available(self) -> bool:
+        """Always available to toggle presets on/off, regardless of data state."""
+        return (
+            self.coordinator.data is not None
+            and self.coordinator.data.available
+            and self.coordinator.data.permissions.change_presets
+        )
+
+    @property
+    def is_on(self) -> bool:
+        """Return True if preset has data."""
+        return self._preset.data is not None
+
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        """Turn on (create) the preset with default values."""
+        await self.coordinator.set_preset(
+            replace(
+                self._preset,
+                data=VogelsMotionMountPresetData(
+                    name=str(self._preset_index),
+                    distance=0,
+                    rotation=0,
+                ),
+            )
+        )
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        """Turn off (delete) the preset."""
+        await self.coordinator.set_preset(replace(self._preset, data=None))
 
 
 class MultiPinFeatureChangePresetsSwitch(VogelsMotionMountBleBaseEntity, SwitchEntity):
@@ -44,11 +113,17 @@ class MultiPinFeatureChangePresetsSwitch(VogelsMotionMountBleBaseEntity, SwitchE
     @property
     def available(self) -> bool:
         """Set availability of multi pin features."""
-        return super().available and self.coordinator.data.permissions.change_settings
+        return (
+            super().available
+            and self.coordinator.data is not None
+            and self.coordinator.data.permissions.change_settings
+        )
 
     @property
     def is_on(self) -> bool:
         """Returns on if change_presets is enabled."""
+        if self.coordinator.data is None or self.coordinator.data.multi_pin_features is None:
+            return False
         return self.coordinator.data.multi_pin_features.change_presets
 
     async def async_turn_on(self, **_: Any):
@@ -79,11 +154,17 @@ class MultiPinFeatureChangeNameSwitch(VogelsMotionMountBleBaseEntity, SwitchEnti
     @property
     def available(self) -> bool:
         """Set availability of multi pin features."""
-        return super().available and self.coordinator.data.permissions.change_settings
+        return (
+            super().available
+            and self.coordinator.data is not None
+            and self.coordinator.data.permissions.change_settings
+        )
 
     @property
     def is_on(self) -> bool:
         """Returns on if change presets is enabled."""
+        if self.coordinator.data is None or self.coordinator.data.multi_pin_features is None:
+            return False
         return self.coordinator.data.multi_pin_features.change_name
 
     async def async_turn_on(self, **_: Any):
@@ -114,11 +195,17 @@ class MultiPinFeatureDisableChannelSwitch(VogelsMotionMountBleBaseEntity, Switch
     @property
     def available(self) -> bool:
         """Set availability of multi pin features."""
-        return super().available and self.coordinator.data.permissions.change_settings
+        return (
+            super().available
+            and self.coordinator.data is not None
+            and self.coordinator.data.permissions.change_settings
+        )
 
     @property
     def is_on(self) -> bool:
         """Returns on if disable channel is enabled."""
+        if self.coordinator.data is None or self.coordinator.data.multi_pin_features is None:
+            return False
         return self.coordinator.data.multi_pin_features.disable_channel
 
     async def async_turn_on(self, **_: Any):
@@ -151,11 +238,17 @@ class MultiPinFeatureChangeTvOnOffDetectionSwitch(
     @property
     def available(self) -> bool:
         """Set availability of multi pin features."""
-        return super().available and self.coordinator.data.permissions.change_settings
+        return (
+            super().available
+            and self.coordinator.data is not None
+            and self.coordinator.data.permissions.change_settings
+        )
 
     @property
     def is_on(self) -> bool:
         """Returns on if change tv on off detection is enabled."""
+        if self.coordinator.data is None or self.coordinator.data.multi_pin_features is None:
+            return False
         return self.coordinator.data.multi_pin_features.change_tv_on_off_detection
 
     async def async_turn_on(self, **_: Any):
@@ -189,11 +282,17 @@ class MultiPinFeatureChangeDefaultPositionSwitch(
     @property
     def available(self) -> bool:
         """Set availability of multi pin features."""
-        return super().available and self.coordinator.data.permissions.change_settings
+        return (
+            super().available
+            and self.coordinator.data is not None
+            and self.coordinator.data.permissions.change_settings
+        )
 
     @property
     def is_on(self) -> bool:
         """Returns on if change default position is enabled."""
+        if self.coordinator.data is None or self.coordinator.data.multi_pin_features is None:
+            return False
         return self.coordinator.data.multi_pin_features.change_default_position
 
     async def async_turn_on(self, **_: Any):
@@ -227,11 +326,17 @@ class MultiPinFeatureStartCalibrationSwitch(
     @property
     def available(self) -> bool:
         """Set availability of multi pin features."""
-        return super().available and self.coordinator.data.permissions.change_settings
+        return (
+            super().available
+            and self.coordinator.data is not None
+            and self.coordinator.data.permissions.change_settings
+        )
 
     @property
     def is_on(self) -> bool:
         """Returns on if change start calibration is enabled."""
+        if self.coordinator.data is None or self.coordinator.data.multi_pin_features is None:
+            return False
         return self.coordinator.data.multi_pin_features.start_calibration
 
     async def async_turn_on(self, **_: Any):

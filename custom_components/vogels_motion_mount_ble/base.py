@@ -50,12 +50,27 @@ class VogelsMotionMountBlePresetBaseEntity(VogelsMotionMountBleBaseEntity):
         """Initialise entity."""
         super().__init__(coordinator=coordinator)
         self._preset_index = preset_index
-        self._attr_translation_placeholders = {"preset": str(preset_index)}
+        self._update_translation_placeholders()
+
+    def _update_translation_placeholders(self) -> None:
+        """Update translation placeholders with preset info."""
+        preset = self._preset
+        preset_name = preset.data.name if preset.data else f"Preset {self._preset_index}"
+        self._attr_translation_placeholders = {
+            "preset": str(self._preset_index),
+            "preset_name": preset_name,
+        }
 
     @property
     def available(self) -> bool:
         """Set availability of this index of Preset entity based if there is dat astored in the preset."""
         return super().available and self._preset.data is not None
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Update sensor with latest data from coordinator and refresh preset name."""
+        self._update_translation_placeholders()
+        super()._handle_coordinator_update()
 
     @property
     def _preset(self) -> VogelsMotionMountPreset:

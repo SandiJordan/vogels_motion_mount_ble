@@ -12,6 +12,7 @@ import struct
 from bleak import BleakClient
 from bleak.backends.characteristic import BleakGATTCharacteristic
 from bleak.backends.device import BLEDevice
+from bleak.exc import BleakCharacteristicNotFoundError
 from bleak_retry_connector import BleakClientWithServiceCache, establish_connection
 
 from .const import (
@@ -27,11 +28,11 @@ from .const import (
     #CHAR_PIN_CHECK_UUID,
     #CHAR_PIN_SETTINGS_UUID,
     CHAR_PRESET_NAMES_UUIDS,
-    CHAR_PRESET_UUID,
+    #CHAR_PRESET_UUID,
     CHAR_PRESET_UUIDS,
     CHAR_ROTATION_UUID,
     CHAR_VERSIONS_CEB_UUID,
-    CHAR_VERSIONS_MCP_UUID,
+    #CHAR_VERSIONS_MCP_UUID,
 )
 from .data import (
     #VogelsMotionMountAuthenticationStatus,
@@ -209,17 +210,11 @@ class VogelsMotionMountBluetoothClient:
                 _LOGGER.debug("Failed to read CEB versions (characteristic may not be supported): %s", err)
                 data_ceb = None
             
-            try:
-                data_mcp = await self._read(CHAR_VERSIONS_MCP_UUID)
-            except Exception as err:
-                _LOGGER.debug("Failed to read MCP versions (characteristic may not be supported): %s", err)
-                data_mcp = None
-            
             return VogelsMotionMountVersions(
                 ceb_bl_version=".".join(str(b) for b in data_ceb) if data_ceb else "Unknown",
-                mcp_hw_version=".".join(str(b) for b in data_mcp[:3]) if data_mcp else "Unknown",
-                mcp_bl_version=".".join(str(b) for b in data_mcp[3:5]) if data_mcp else "Unknown",
-                mcp_fw_version=".".join(str(b) for b in data_mcp[5:7]) if data_mcp else "Unknown",
+                mcp_hw_version="Unknown",
+                mcp_bl_version="Unknown",
+                mcp_fw_version="Unknown",
             )
         except Exception as err:
             _LOGGER.debug("Failed to read versions: %s", err)
@@ -234,6 +229,11 @@ class VogelsMotionMountBluetoothClient:
     # region Control
     # -------------------------------
 
+    @property
+    def is_connected(self) -> bool:
+        """Check if the client is currently connected."""
+        return self._session_data is not None and self._session_data.client.is_connected
+
     async def disconnect(self):
         """Disconnect from the Vogels Motion Mount BLE device if connected."""
         if self._session_data:
@@ -247,10 +247,35 @@ class VogelsMotionMountBluetoothClient:
                     self._connection_callback(False)
 
     async def select_preset(self, preset_index: int):
-        """Select the preset at the given index on the Vogels Motion Mount."""
+        """Select the preset at the given index on the Vogels Motion Mount.
+        
+        This reads the preset data (distance and rotation) and moves the mount
+        to those positions using the existing distance and rotation controls.
+        """
         # Only allow indexes that match the available preset characteristic lists
         assert preset_index in range(len(CHAR_PRESET_UUIDS))
-        await self._write(CHAR_PRESET_UUID, bytes([preset_index]))
+        
+        try:
+            # Read the preset data
+            preset = await self.read_preset(preset_index)
+            
+            if preset.data is None:
+                raise RuntimeError(f"Preset {preset_index} has no data")
+            
+            _LOGGER.debug(
+                "Activating preset %d: distance=%d, rotation=%d",
+                preset_index,
+                preset.data.distance,
+                preset.data.rotation
+            )
+            
+            # Move to the preset's distance and rotation
+            await self.request_distance(preset.data.distance)
+            await self.request_rotation(preset.data.rotation)
+            
+        except Exception as err:
+            _LOGGER.exception("Failed to select preset %d: %s", preset_index, err)
+            raise RuntimeError(f"Failed to select preset {preset_index}: {err}") from err
 
     async def start_calibration(self):
         """Start the calibration process on the Vogels Motion Mount."""
@@ -371,6 +396,13 @@ class VogelsMotionMountBluetoothClient:
                 _LOGGER.exception("Failed to connect to %s: %s", self._device.address, err)
                 raise ConnectionError(f"Failed to connect to {self._device.address}: {err}") from err
 
+            # Log all available services and characteristics for debugging
+            _LOGGER.info("Available services and characteristics on %s:", self._device.address)
+            for service in client.services:
+                _LOGGER.info("  Service: %s", service.uuid)
+                for char in service.characteristics:
+                    _LOGGER.info("    Characteristic: %s", char.uuid)
+
             # Device doesn't support PIN/auth — give full permissive permissions so writes work
             self._session_data = _VogelsMotionMountSessionData(
                 client=client,
@@ -400,6 +432,9 @@ class VogelsMotionMountBluetoothClient:
             data = await session_data.client.read_gatt_char(char_uuid)
             _LOGGER.debug("Read data %s | %s", char_uuid, data)
             return data
+        except BleakCharacteristicNotFoundError as err:
+            _LOGGER.debug("Characteristic %s not found on device: %s", char_uuid, err)
+            raise RuntimeError(f"Failed to read characteristic {char_uuid}: {err}") from err
         except Exception as err:
             _LOGGER.exception("Failed to read characteristic %s: %s", char_uuid, err)
             raise RuntimeError(f"Failed to read characteristic {char_uuid}: {err}") from err
@@ -432,7 +467,6 @@ class VogelsMotionMountBluetoothClient:
             (
                 (char_uuid in CHAR_PRESET_UUIDS)
                 or (char_uuid in CHAR_PRESET_NAMES_UUIDS)
-                or (char_uuid == CHAR_PRESET_UUID)
             )
             and permissions.change_presets
             or (char_uuid == CHAR_DISABLE_CHANNEL and permissions.disable_channel)

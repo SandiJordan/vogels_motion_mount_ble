@@ -4,7 +4,7 @@ from dataclasses import replace
 
 from homeassistant.components.button import ButtonEntity
 from homeassistant.const import EntityCategory
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import VogelsMotionMountBleConfigEntry
@@ -25,13 +25,7 @@ async def async_setup_entry(
         [
             StartCalibrationButton(coordinator),
             RefreshDataButton(coordinator),
-            DisconnectButton(coordinator),
             SelectPresetDefaultButton(coordinator),
-            *[AddPresetButton(coordinator, preset_index) for preset_index in range(7)],
-            *[
-                DeletePresetButton(coordinator, preset_index)
-                for preset_index in range(7)
-            ],
             *[
                 SelectPresetButton(coordinator, preset_index)
                 for preset_index in range(7)
@@ -76,29 +70,11 @@ class RefreshDataButton(VogelsMotionMountBleBaseEntity, ButtonEntity):
         await self.coordinator.refresh_data()
 
 
-class DisconnectButton(VogelsMotionMountBleBaseEntity, ButtonEntity):
-    """Set up the Button that provides an action to disconnect data."""
-
-    _attr_unique_id = "disconnect"
-    _attr_translation_key = _attr_unique_id
-    _attr_icon = "mdi:power-plug-off"
-    _attr_entity_category = EntityCategory.DIAGNOSTIC
-
-    @property
-    def available(self) -> bool:
-        """Set availability only if device is connected currently."""
-        return self.coordinator.data.connected
-
-    async def async_press(self):
-        """Execute disconnect."""
-        await self.coordinator.disconnect()
-
-
 class SelectPresetDefaultButton(VogelsMotionMountBleBaseEntity, ButtonEntity):
     """Set up the Buttons to select the default preset."""
 
     _attr_unique_id = "select_preset_default"
-    _attr_translation_key = _attr_unique_id
+    _attr_translation_key = "select_preset_default"
     _attr_icon = "mdi:wall"
 
     async def async_press(self):
@@ -122,7 +98,31 @@ class SelectPresetButton(VogelsMotionMountBlePresetBaseEntity, ButtonEntity):
             coordinator=coordinator,
             preset_index=preset_index,
         )
-        self._attr_unique_id = f"select_preset_id_{preset_index}"
+        self._attr_unique_id = f"select_preset_{preset_index}"
+        self._update_hidden_state()
+
+    def _update_hidden_state(self) -> None:
+        """Update hidden state based on whether preset has data."""
+        self._attr_hidden = self._preset.data is None
+
+    @property
+    def name(self) -> str:
+        """Return button name with current preset name."""
+        if self._preset.data:
+            return self._preset.data.name
+        return f"Preset {self._preset_index}"
+
+    @property
+    def available(self) -> bool:
+        """Only show button if preset has data."""
+        return super().available and self._preset.data is not None
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Update button visibility when preset data changes."""
+        self._update_hidden_state()
+        self.async_write_ha_state()
+        super()._handle_coordinator_update()
 
     async def async_press(self):
         """Select a custom preset by it's index, they are offset by 1 due to default preset."""
@@ -144,13 +144,23 @@ class DeletePresetButton(VogelsMotionMountBlePresetBaseEntity, ButtonEntity):
         """Initialize unique_id because it's derived from preset_index."""
         super().__init__(coordinator, preset_index)
         self._attr_unique_id = f"delete_preset_{preset_index}"
+        self._update_hidden_state()
+
+    def _update_hidden_state(self) -> None:
+        """Update hidden state based on whether preset has data."""
+        self._attr_hidden = self._preset.data is None
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Update button visibility when preset data changes."""
+        self._update_hidden_state()
+        super()._handle_coordinator_update()
 
     @property
     def available(self) -> bool:
         """Set availability if preset exists and user has permission."""
         return (
             super().available
-            and super().available
             and self.coordinator.data.permissions.change_presets
         )
 
@@ -174,6 +184,17 @@ class AddPresetButton(VogelsMotionMountBlePresetBaseEntity, ButtonEntity):
         """Initialize unique_id because it's derived from preset_index."""
         super().__init__(coordinator, preset_index)
         self._attr_unique_id = f"add_preset_{preset_index}"
+        self._update_hidden_state()
+
+    def _update_hidden_state(self) -> None:
+        """Update hidden state based on whether preset has data."""
+        self._attr_hidden = self._preset.data is not None
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Update button visibility when preset data changes."""
+        self._update_hidden_state()
+        super()._handle_coordinator_update()
 
     async def async_press(self):
         """Add a custom preset by it's index with empty data."""

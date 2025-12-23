@@ -173,7 +173,8 @@ async def async_unload_entry(
     """Unload a config entry."""
     _LOGGER.debug("async_unload_entry")
 
-    entry_data = hass.data[DOMAIN].get(config_entry.entry_id, {})
+    # Try to get the BLE callback from stored data (if it was registered during setup failure)
+    entry_data = hass.data.get(DOMAIN, {}).get(config_entry.entry_id)
     if isinstance(entry_data, dict):
         unregister_ble_callback = entry_data.get(BLE_CALLBACK)
         if unregister_ble_callback:

@@ -30,6 +30,9 @@
     "invalid_preset_index_not_exists": {
       "message": "Invalid preset index, preset at {preset_index} does not exist."
     },
+    "error_preset_no_data": {
+      "message": "Preset {preset} has no data. Please create the preset first."
+    },
     "invalid_name": {
       "message": "Invalid name {name} with length {actual}, max length is {expected}."
     },
@@ -157,20 +160,23 @@
       "refresh_data": {
         "name": "Refresh Data"
       },
+      "connect": {
+        "name": "Connect"
+      },
       "disconnect": {
         "name": "Disconnect"
       },
       "select_preset_default": {
-        "name": "Select default preset"
+        "name": "Home"
       },
       "select_preset_custom": {
-        "name": "Select preset {preset}"
+        "name": "{preset_name}"
       },
       "delete_preset_custom": {
-        "name": "Delete preset {preset}"
+        "name": "Delete {preset_name}"
       },
       "add_preset_custom": {
-        "name": "Add preset {preset}"
+        "name": "Add {preset_name}"
       }
     },
     "number": {
@@ -253,6 +259,12 @@
       }
     },
     "switch": {
+      "connection": {
+        "name": "Connect"
+      },
+      "preset_config": {
+        "name": "{preset_name}"
+      },
       "change_presets": {
         "name": "Change presets",
         "state": {

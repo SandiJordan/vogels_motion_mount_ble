@@ -15,7 +15,7 @@ async def async_setup_entry(
     config_entry: VogelsMotionMountBleConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ):
-    """Set up the Sensors for Distance, Rotation, Pin and Versions."""
+    """Set up the Sensors for Distance and Rotation."""
     coordinator: VogelsMotionMountBleCoordinator = config_entry.runtime_data
 
     async_add_entities(
@@ -23,11 +23,6 @@ async def async_setup_entry(
             DistanceSensor(coordinator),
             RotationSensor(coordinator),
             CEBBLSensor(coordinator),
-            MCPHWSensor(coordinator),
-            MCPBLSensor(coordinator),
-            MCPFWSensor(coordinator),
-            PinSettingsSensor(coordinator),
-            AuthenticationSensor(coordinator),
         ]
     )
 
@@ -36,9 +31,8 @@ class DistanceSensor(VogelsMotionMountBleBaseEntity, SensorEntity):
     """Sensor for current distance, may be different from requested distance."""
 
     _attr_unique_id = "current_distance"
-    _attr_translation_key = _attr_unique_id
+    _attr_translation_key = "current_distance"
     _attr_icon = "mdi:ruler"
-    _attr_entity_registry_enabled_default = False
 
     @property
     def native_value(self):
@@ -50,9 +44,8 @@ class RotationSensor(VogelsMotionMountBleBaseEntity, SensorEntity):
     """Sensor for current rotation, may be different from requested rotation."""
 
     _attr_unique_id = "current_rotation"
-    _attr_translation_key = _attr_unique_id
+    _attr_translation_key = "current_rotation"
     _attr_icon = "mdi:angle-obtuse"
-    _attr_entity_registry_enabled_default = False
 
     @property
     def native_value(self):
@@ -127,6 +120,8 @@ class PinSettingsSensor(VogelsMotionMountBleBaseEntity, SensorEntity):
     @property
     def native_value(self):
         """Return the current value."""
+        if self.coordinator.data.pin_setting is None:
+            return None
         return self.coordinator.data.pin_setting.value
 
 
@@ -141,4 +136,9 @@ class AuthenticationSensor(VogelsMotionMountBleBaseEntity, SensorEntity):
     @property
     def native_value(self):
         """Return the current value."""
+        if (
+            self.coordinator.data.permissions is None
+            or self.coordinator.data.permissions.auth_status is None
+        ):
+            return None
         return self.coordinator.data.permissions.auth_status.auth_type.value

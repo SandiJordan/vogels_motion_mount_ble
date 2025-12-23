@@ -122,8 +122,20 @@ class VogelsMotionMountBleCoordinator(DataUpdateCoordinator[VogelsMotionMountDat
         """Disconnect form client."""
         await self._call(self._client.disconnect)
 
+    async def connect(self):
+        """Connect to device."""
+        await self.async_request_refresh()
+
     async def select_preset(self, preset_index: int):
         """Select a preset to move to."""
+        # Verify preset has data before attempting to select
+        if self.data and preset_index < len(self.data.presets):
+            preset = self.data.presets[preset_index]
+            if preset.data is None:
+                raise ServiceValidationError(
+                    translation_key="error_preset_no_data",
+                    translation_placeholders={"preset": str(preset_index)},
+                )
         await self._call(self._client.select_preset, preset_index)
 
     async def start_calibration(self):
@@ -318,7 +330,7 @@ class VogelsMotionMountBleCoordinator(DataUpdateCoordinator[VogelsMotionMountDat
             return VogelsMotionMountData(
                 automove=await self._client.read_automove(),
                 available=True,
-                connected=self.data.connected if self.data is not None else False,
+                connected=self._client.is_connected,
                 distance=await self._client.read_distance(),
                 freeze_preset_index=await self._client.read_freeze_preset_index(),
                 multi_pin_features=None,
