@@ -25,7 +25,7 @@ from homeassistant.helpers.selector import (
 )
 from homeassistant.util import dt as dt_util
 
-from .const import CONF_ERROR, CONF_MAC, CONF_NAME, DOMAIN
+from .const import CONF_BLE_DISCONNECT_TIMEOUT, CONF_ERROR, CONF_MAC, CONF_NAME, DEFAULT_BLE_DISCONNECT_TIMEOUT, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 

@@ -18,12 +18,13 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed, ServiceValidationError
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from homeassistant.util import dt as dt_util
 
 from .client import (
     VogelsMotionMountBluetoothClient,
     VogelsMotionMountClientAuthenticationError,
 )
-from .const import CONF_MAC, CONF_PIN, DOMAIN
+from .const import CONF_MAC, CONF_PIN, CONF_BLE_DISCONNECT_TIMEOUT, DEFAULT_BLE_DISCONNECT_TIMEOUT, DOMAIN
 from .data import (
     VogelsMotionMountAuthenticationType,
     VogelsMotionMountAutoMoveType,
@@ -58,6 +59,11 @@ class VogelsMotionMountBleCoordinator(DataUpdateCoordinator[VogelsMotionMountDat
 
         # Store setup data
         self.address = device.address
+        self._reconnect_attempts = 0
+        self._last_disconnect_time = None
+        self._load_ble_disconnect_timeout(config_entry)
+        self._last_activity_time = dt_util.utcnow()
+        self._disconnect_timer_handle = None
 
         # Create client
         self._client = VogelsMotionMountBluetoothClient(
@@ -92,11 +98,73 @@ class VogelsMotionMountBleCoordinator(DataUpdateCoordinator[VogelsMotionMountDat
 
         _LOGGER.debug("Coordinator startup finished")
 
+    def _load_ble_disconnect_timeout(self, config_entry: ConfigEntry) -> None:
+        """Load BLE disconnect timeout from config."""
+        timeout_minutes = (
+            config_entry.data.get(CONF_BLE_DISCONNECT_TIMEOUT)
+            or DEFAULT_BLE_DISCONNECT_TIMEOUT
+        )
+        self._ble_disconnect_timeout = timedelta(minutes=timeout_minutes)
+        _LOGGER.debug(
+            "BLE disconnect timeout set to %d minutes", timeout_minutes
+        )
+
+    async def async_config_entry_first_refresh(self) -> None:
+        """Perform the first refresh, establishing BLE connection before reading data."""
+        _LOGGER.debug("Starting first refresh - establishing BLE connection")
+        
+        # Try to establish BLE connection first
+        try:
+            await self._client._connect()
+            _LOGGER.info("BLE connection established to %s", self.address)
+        except Exception as err:
+            _LOGGER.warning(
+                "Failed to establish initial BLE connection to %s: %s. Will retry on next update.",
+                self.address,
+                err,
+            )
+        
+        # Now do the normal first refresh to read data
+        await super().async_config_entry_first_refresh()
+
     def _available_callback(
         self, info: BluetoothServiceInfoBleak, change: BluetoothChange
     ) -> None:
         _LOGGER.debug("%s is discovered again", info.address)
+        self._reconnect_attempts = 0  # Reset retry counter
+        self._last_disconnect_time = None
+        self._update_activity_timer()
         self.hass.async_create_task(self.async_request_refresh())  # load the data
+
+    def _cancel_disconnect_timer(self) -> None:
+        """Cancel the disconnect timer if active."""
+        if self._disconnect_timer_handle is not None:
+            self._disconnect_timer_handle.cancel()
+            self._disconnect_timer_handle = None
+
+    def _update_activity_timer(self) -> None:
+        """Update activity timer - resets the disconnect timeout."""
+        self._last_activity_time = dt_util.utcnow()
+        self._cancel_disconnect_timer()
+        
+        if self._client.is_connected:
+            # Schedule disconnect after timeout period
+            self._disconnect_timer_handle = self.hass.loop.call_later(
+                self._ble_disconnect_timeout.total_seconds(),
+                self._async_disconnect_timeout,
+            )
+            _LOGGER.debug(
+                "BLE disconnect timer set for %s minutes",
+                self._ble_disconnect_timeout.total_seconds() / 60,
+            )
+
+    def _async_disconnect_timeout(self) -> None:
+        """Called when disconnect timeout is reached."""
+        _LOGGER.info(
+            "BLE idle timeout reached for %s. Disconnecting.", self.address
+        )
+        self._disconnect_timer_handle = None
+        self.hass.async_create_task(self._client.disconnect())
 
     def _unavailable_callback(self, info: BluetoothServiceInfoBleak) -> None:
         _LOGGER.debug("%s is no longer seen", info.address)
@@ -105,6 +173,7 @@ class VogelsMotionMountBleCoordinator(DataUpdateCoordinator[VogelsMotionMountDat
     async def unload(self):
         """Disconnect and unload."""
         _LOGGER.debug("unload coordinator")
+        self._cancel_disconnect_timer()
         self._unsub_options_update_listener()
         self._unsub_unavailable_update_listener()
         self._unsub_available_update_listener()
@@ -124,7 +193,17 @@ class VogelsMotionMountBleCoordinator(DataUpdateCoordinator[VogelsMotionMountDat
 
     async def connect(self):
         """Connect to device."""
-        await self.async_request_refresh()
+        _LOGGER.info("Manually connecting to %s", self.address)
+        try:
+            await self._client._connect()
+            _LOGGER.info("Successfully connected to %s", self.address)
+            await self.async_request_refresh()
+        except Exception as err:
+            _LOGGER.error("Failed to manually connect to %s: %s", self.address, err)
+            raise ServiceValidationError(
+                translation_key="error_device_not_found",
+                translation_placeholders={"error": str(err)},
+            ) from err
 
     async def select_preset(self, preset_index: int):
         """Select a preset to move to."""
@@ -306,6 +385,12 @@ class VogelsMotionMountBleCoordinator(DataUpdateCoordinator[VogelsMotionMountDat
     def _connection_changed(self, connected: bool):
         if self.data is not None:
             self.async_set_updated_data(replace(self.data, connected=connected))
+        
+        # Manage disconnect timeout based on connection state
+        if connected:
+            self._update_activity_timer()
+        else:
+            self._cancel_disconnect_timer()
 
     def _distance_changed(self, distance: int):
         _LOGGER.debug("_distance_changed %s", distance)
@@ -327,7 +412,7 @@ class VogelsMotionMountBleCoordinator(DataUpdateCoordinator[VogelsMotionMountDat
             permissions = await self._client.read_permissions()
             self._check_permission_status(permissions)
 
-            return VogelsMotionMountData(
+            result = VogelsMotionMountData(
                 automove=await self._client.read_automove(),
                 available=True,
                 connected=self._client.is_connected,
@@ -342,13 +427,31 @@ class VogelsMotionMountBleCoordinator(DataUpdateCoordinator[VogelsMotionMountDat
                 versions=await self._client.read_versions(),
                 permissions=permissions,
             )
+            
+            # Reset activity timer on successful update
+            self._update_activity_timer()
+            return result
         except VogelsMotionMountClientAuthenticationError as err:
             self._set_unavailable()
             # reraise auth issues
             _LOGGER.debug("_async_update_data ConfigEntryAuthFailed %s", str(err))
             raise ConfigEntryAuthFailed from err
         except BleakConnectionError as err:
-            # treat BleakConnectionError as device not found
+            # Handle connection errors with smart retry strategy
+            self._handle_connection_error()
+            error_msg = str(err)
+            if "out of connection slots" in error_msg.lower():
+                _LOGGER.error(
+                    "BLE adapter out of connection slots for %s. Check for stale connections or restart Bluetooth adapter.",
+                    self.address,
+                )
+                raise UpdateFailed(
+                    translation_key="error_unknown",
+                    translation_placeholders={
+                        "error": "Bluetooth adapter out of connection slots. Try restarting your Bluetooth adapter or removing stale connections."
+                    },
+                ) from err
+            # treat other BleakConnectionErrors as device not found
             raise UpdateFailed(translation_key="error_device_not_found") from err
         except BleakNotFoundError as err:
             self._set_unavailable()
@@ -413,3 +516,15 @@ class VogelsMotionMountBleCoordinator(DataUpdateCoordinator[VogelsMotionMountDat
             return
         # tell HA to refresh all entities
         self.async_set_updated_data(replace(self.data, available=False))
+
+    def _handle_connection_error(self):
+        """Handle BLE connection errors with logging and disconnect."""
+        self._reconnect_attempts += 1
+        self._last_disconnect_time = dt_util.utcnow()
+        _LOGGER.warning(
+            "BLE connection error for %s. Attempt %d. Forcing disconnect to reset connection.",
+            self.address,
+            self._reconnect_attempts,
+        )
+        # Force disconnect to reset the BLE connection
+        self.hass.async_create_task(self._client.disconnect())

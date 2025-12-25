@@ -6,6 +6,7 @@ from homeassistant.components.button import ButtonEntity
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.entity_registry import async_get
 
 from . import VogelsMotionMountBleConfigEntry
 from .base import VogelsMotionMountBleBaseEntity, VogelsMotionMountBlePresetBaseEntity
@@ -14,24 +15,44 @@ from .data import VogelsMotionMountPresetData
 
 
 async def async_setup_entry(
-    _: HomeAssistant,
+    hass: HomeAssistant,
     config_entry: VogelsMotionMountBleConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ):
     """Set up the RefreshData and SelectPreset buttons."""
     coordinator: VogelsMotionMountBleCoordinator = config_entry.runtime_data
 
-    async_add_entities(
-        [
-            StartCalibrationButton(coordinator),
-            RefreshDataButton(coordinator),
-            SelectPresetDefaultButton(coordinator),
-            *[
-                SelectPresetButton(coordinator, preset_index)
-                for preset_index in range(7)
-            ],
-        ]
-    )
+    buttons = [
+        StartCalibrationButton(coordinator),
+        RefreshDataButton(coordinator),
+        SelectPresetDefaultButton(coordinator),
+    ]
+
+    # Only create select preset buttons for presets that have data
+    if coordinator.data:
+        for preset_index in range(7):
+            if coordinator.data.presets[preset_index].data is not None:
+                buttons.append(SelectPresetButton(coordinator, preset_index))
+
+    async_add_entities(buttons)
+
+    # Clean up old preset buttons that no longer have data
+    entity_registry = async_get(hass)
+    domain = "button"
+    platform = "vogels_motion_mount_ble"
+    
+    # Create a list copy to avoid "dictionary changed size during iteration" error
+    for entity in list(entity_registry.entities.values()):
+        if entity.platform == platform and entity.domain == domain:
+            # Check if it's a preset button and if the preset no longer has data
+            if "select_preset_" in entity.unique_id and coordinator.data:
+                try:
+                    preset_index = int(entity.unique_id.split("_")[-1])
+                    if preset_index >= 0 and preset_index < 7:
+                        if coordinator.data.presets[preset_index].data is None:
+                            entity_registry.async_remove(entity.entity_id)
+                except (ValueError, IndexError):
+                    pass
 
 
 class StartCalibrationButton(VogelsMotionMountBleBaseEntity, ButtonEntity):
@@ -125,8 +146,8 @@ class SelectPresetButton(VogelsMotionMountBlePresetBaseEntity, ButtonEntity):
         super()._handle_coordinator_update()
 
     async def async_press(self):
-        """Select a custom preset by it's index, they are offset by 1 due to default preset."""
-        await self.coordinator.select_preset(self._preset_index + 1)
+        """Select a custom preset by it's index."""
+        await self.coordinator.select_preset(self._preset_index)
 
 
 class DeletePresetButton(VogelsMotionMountBlePresetBaseEntity, ButtonEntity):

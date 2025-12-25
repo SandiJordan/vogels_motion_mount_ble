@@ -161,7 +161,7 @@ async def async_reload_entry(
 ) -> None:
     """Reload config entry."""
     _LOGGER.debug(
-        "async_reload_entry async_reload with pin %s", config_entry.data["conf_pin"]
+        "async_reload_entry async_reload with pin %s", config_entry.data.get("conf_pin", "Not set")
     )
     await async_unload_entry(hass, config_entry)
     await async_setup_entry(hass, config_entry)

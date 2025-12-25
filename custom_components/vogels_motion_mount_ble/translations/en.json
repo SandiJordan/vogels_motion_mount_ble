@@ -189,6 +189,9 @@
       "tv_width": {
         "name": "TV width"
       },
+      "ble_disconnect_timeout": {
+        "name": "BLE Timeout"
+      },
       "preset_distance_custom": {
         "name": "Preset {preset} distance"
       },

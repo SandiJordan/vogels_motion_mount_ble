@@ -7,6 +7,7 @@ from homeassistant.components.switch import SwitchEntity
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.entity_registry import async_get
 
 from . import VogelsMotionMountBleConfigEntry
 from .base import VogelsMotionMountBleBaseEntity, VogelsMotionMountBlePresetBaseEntity
@@ -15,7 +16,7 @@ from .data import VogelsMotionMountPresetData
 
 
 async def async_setup_entry(
-    _: HomeAssistant,
+    hass: HomeAssistant,
     config_entry: VogelsMotionMountBleConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ):
@@ -28,6 +29,17 @@ async def async_setup_entry(
     switches.extend([PresetSwitch(coordinator, preset_index) for preset_index in range(7)])
     
     async_add_entities(switches)
+    
+    # Clean up old preset switch entities with old unique_id format
+    entity_registry = async_get(hass)
+    domain = "switch"
+    platform = "vogels_motion_mount_ble"
+    for entity in list(entity_registry.entities.values()):
+        if entity.platform == platform and entity.domain == domain:
+            if "preset_" in entity.unique_id and "_switch" in entity.unique_id:
+                # Check if it's old format (count underscores = 2, not 3)
+                if entity.unique_id.count("_") == 2:
+                    entity_registry.async_remove(entity.entity_id)
 
 
 class ConnectionSwitch(VogelsMotionMountBleBaseEntity, SwitchEntity):
@@ -68,7 +80,8 @@ class PresetSwitch(VogelsMotionMountBlePresetBaseEntity, SwitchEntity):
             coordinator=coordinator,
             preset_index=preset_index,
         )
-        self._attr_unique_id = f"preset_{preset_index}"
+        self._attr_unique_id = f"preset_{preset_index}_0_switch"
+        self._attr_name = f"{preset_index + 1}. Preset {preset_index + 1}"
 
     @property
     def available(self) -> bool:
@@ -96,10 +109,14 @@ class PresetSwitch(VogelsMotionMountBlePresetBaseEntity, SwitchEntity):
                 ),
             )
         )
+        # Refresh the coordinator to update all entities
+        await self.coordinator.async_request_refresh()
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Turn off (delete) the preset."""
         await self.coordinator.set_preset(replace(self._preset, data=None))
+        # Refresh the coordinator to update all entities
+        await self.coordinator.async_request_refresh()
 
 
 class MultiPinFeatureChangePresetsSwitch(VogelsMotionMountBleBaseEntity, SwitchEntity):
