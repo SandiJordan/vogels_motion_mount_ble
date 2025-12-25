@@ -1,4 +1,4 @@
-# Vogels MotionMount Bluetooth Home Assistant Integratioon
+# Vogel's MotionMount NEXT 7355 Bluetooth Home Assistant Integratioon
 
 [![Open Vogels Motion Mount BLE in HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=Nailik&repository=vogels_motion_mount_ble&category=integration)
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://hacs.xyz)
@@ -7,7 +7,7 @@
 ![Downloads](https://img.shields.io/github/downloads/nailik/vogels_motion_mount_ble/total)
 [![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit&logoColor=white)](https://github.com/pre-commit/pre-commit)
 
-Home Assistant integration allows to control the Vogel's MotionMount (TVM 7675) over Bluetooth Low Energy (BLE).
+Home Assistant integration allows to control the Vogel's MotionMount NEXT 7355 over Bluetooth Low Energy (BLE).
 
 ## High-level description & use cases
 
@@ -16,21 +16,17 @@ This integration exposes the MotionMount as local devices and entities in Home A
 - Move the mount forward/backward and rotate left/right (percentage-based control).
 - Call named presets and add/delete presets.
 - Set a freeze preset used when the TV is turned off and how the TV status is detected.
-- Change PIN for authorised user and supervisior including specific permissions.
 - Start the calibration process.
-- Read firmware/hardware version information.
 
 Use cases:
 
 - Move to a named preset when the TV turns on/off or based on another trigger.
 - Automatically rotate or adjust distance based on other sensors or automations.
-- Expose device status and firmware versions for inventory/monitoring.
+- Expose device status for monitoring.
 
 ## Supported device(s)
 
-- [Vogel’s MotionMount TVM 7675](https://www.vogels.com/de-de/c/tvm-7675-elektrische-tv-wandhalterung-schwarz)
-  > Tested with CEB BL Version 1.5.1 and MCP Versions BL 2.5, FW 2.12, HW 2.2.0
-  > PRO Version possibly works as well but was not tested
+- [Vogel’s MotionMount NEXT 7355]([https://www.vogels.com/de-de/c/tvm-7675-elektrische-tv-wandhalterung-schwarz](https://www.vogels.com/en-gb/c/motionmount-next-7355-gb-full-motion-motorised-tv-wall-mount))
 
 ## Requirements & prerequisites
 
@@ -57,11 +53,7 @@ Use cases:
 During setup, the integration asks for:
 
 - **MAC** — the BLE MAC address of the device.
-- **Device name** — a friendly name for the device (optional).
-- **PIN** — PIN to be used, can be changed later
-
-  - _Authorised user PIN_: can control the device or change settings.
-  - _Supervisor PIN_: allows additional control and restrictions.
+- **Device name** — a friendly name for the device.
 
 - The integration can **automatically detect the Mount via Bluetooth**.
 
