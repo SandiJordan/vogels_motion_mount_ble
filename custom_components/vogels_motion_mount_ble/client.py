@@ -482,20 +482,85 @@ class VogelsMotionMountBluetoothClient:
     async def _setup_notifications(self, client: BleakClient):
         """Setup notifications for distance and rotation changes."""
         # Start notifications individually and log but do not raise on failure
-        try:
-            await client.start_notify(
-                char_specifier=CHAR_DISTANCE_UUID,
-                callback=self._handle_distance_change,
-            )
-        except Exception as err:
-            _LOGGER.warning("Failed to start distance notifications: %s", err)
-        try:
-            await client.start_notify(
-                char_specifier=CHAR_ROTATION_UUID,
-                callback=self._handle_rotation_change,
-            )
-        except Exception as err:
-            _LOGGER.warning("Failed to start rotation notifications: %s", err)
+        await self._setup_single_notification(
+            client=client,
+            char_uuid=CHAR_DISTANCE_UUID,
+            callback=self._handle_distance_change,
+            char_name="distance",
+        )
+        await self._setup_single_notification(
+            client=client,
+            char_uuid=CHAR_ROTATION_UUID,
+            callback=self._handle_rotation_change,
+            char_name="rotation",
+        )
+
+    async def _setup_single_notification(
+        self,
+        client: BleakClient,
+        char_uuid: str,
+        callback,
+        char_name: str,
+        max_retries: int = 3,
+    ):
+        """Setup a single notification with retry logic and detailed error logging."""
+        for attempt in range(max_retries):
+            try:
+                # Check if characteristic exists and supports notifications
+                try:
+                    char = client.services.get_characteristic(char_uuid)
+                    if char is None:
+                        _LOGGER.warning(
+                            "Characteristic %s (%s) not found on device",
+                            char_name,
+                            char_uuid,
+                        )
+                        return
+                except Exception:
+                    _LOGGER.debug(
+                        "Could not verify if characteristic %s supports notifications",
+                        char_name,
+                    )
+
+                await client.start_notify(
+                    char_specifier=char_uuid,
+                    callback=callback,
+                )
+                _LOGGER.debug(
+                    "Successfully started %s notifications", char_name
+                )
+                return
+            except Exception as err:
+                error_msg = str(err)
+                # Check if this is a recoverable error
+                if "0x0e" in error_msg or "Unlikely" in error_msg:
+                    if attempt < max_retries - 1:
+                        wait_time = 0.5 * (2 ** attempt)  # exponential backoff
+                        _LOGGER.debug(
+                            "Failed to start %s notifications (ATT error 0x0e), retrying in %.1fs (attempt %d/%d): %s",
+                            char_name,
+                            wait_time,
+                            attempt + 1,
+                            max_retries,
+                            err,
+                        )
+                        await asyncio.sleep(wait_time)
+                        continue
+                    else:
+                        _LOGGER.warning(
+                            "Failed to start %s notifications after %d attempts (ATT error 0x0e - device may not support notifications): %s",
+                            char_name,
+                            max_retries,
+                            err,
+                        )
+                        return
+                else:
+                    _LOGGER.warning(
+                        "Failed to start %s notifications: %s",
+                        char_name,
+                        err,
+                    )
+                    return
 
     def _handle_distance_change(
         self, _: BleakGATTCharacteristic | None, data: bytearray
