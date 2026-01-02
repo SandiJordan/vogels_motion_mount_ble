@@ -13,7 +13,7 @@ from bleak import BleakClient
 from bleak.backends.characteristic import BleakGATTCharacteristic
 from bleak.backends.device import BLEDevice
 from bleak.exc import BleakCharacteristicNotFoundError, BleakDBusError, BleakError
-from bleak_retry_connector import BleakClientWithServiceCache, establish_connection, BleakNotFoundError, BleakConnectionError
+from bleak_retry_connector import establish_connection, BleakNotFoundError, BleakConnectionError
 
 from .const import (
     #CHAR_AUTHENTICATE_UUID,
@@ -101,6 +101,8 @@ class VogelsMotionMountBluetoothClient:
         self._rotation_callback = rotation_callback
         self._session_data: _VogelsMotionMountSessionData | None = None
         self._connect_lock = asyncio.Lock()
+        self._notifications_setup = False
+        self._keep_alive_handle = None
 
     # -------------------------------
     # region Read
@@ -250,15 +252,19 @@ class VogelsMotionMountBluetoothClient:
 
     async def disconnect(self):
         """Disconnect from the Vogels Motion Mount BLE device if connected."""
+        _LOGGER.debug("Disconnecting from %s", self._device.address)
+        self._stop_keep_alive()
         if self._session_data:
             try:
                 await self._session_data.client.disconnect()
             except Exception as err:
-                _LOGGER.debug("Error while disconnecting: %s", err)
+                _LOGGER.debug("Error while disconnecting from %s: %s", self._device.address, err)
             finally:
                 self._session_data = None
                 if self._connection_callback:
                     self._connection_callback(False)
+        # Give BlueZ time to clean up the stale connection
+        await asyncio.sleep(0.5)
 
     async def select_preset(self, preset_index: int):
         """Select the preset at the given index on the Vogels Motion Mount.
@@ -484,66 +490,142 @@ class VogelsMotionMountBluetoothClient:
         async with self._connect_lock:
             _LOGGER.debug("Connecting to device %s", self._device.address)
             if self._session_data and self._session_data.client.is_connected:
-                _LOGGER.debug("Already connected")
+                _LOGGER.debug("Already connected to %s", self._device.address)
                 return self._session_data
             
             # Clear stale session if connection was dropped
             if self._session_data:
-                _LOGGER.debug("Previous connection is stale, clearing session")
+                _LOGGER.debug("Previous connection is stale, clearing session for %s", self._device.address)
                 self._session_data = None
+            
+            # Reset notifications setup flag for new connection
+            self._notifications_setup = False
 
             try:
+                _LOGGER.debug("Establishing connection to %s using retry connector", self._device.address)
+                # Use establish_connection with raw BleakClient for reliable connection with retries
+                # but without aggressive service caching that might cause timeouts
+                # IMPORTANT: Limit max_attempts to avoid exhausting the BLE adapter's connection slots
                 client = await establish_connection(
-                    client_class=BleakClientWithServiceCache,
+                    client_class=BleakClient,
                     device=self._device,
                     name=self._device.name or "Unknown Device",
                     disconnected_callback=self._handle_disconnect,
+                    max_attempts=3,  # Limit retries to avoid adapter slot exhaustion
                 )
-            except (BleakNotFoundError, BleakConnectionError, BleakError, TimeoutError) as err:
-                _LOGGER.debug("Failed to connect to %s: %s", self._device.address, err)
+                _LOGGER.info("Successfully established connection to %s", self._device.address)
+                
+            except asyncio.TimeoutError:
+                _LOGGER.error("Connection timeout for %s", self._device.address)
+                raise ConnectionError(f"Connection timeout for {self._device.address}")
+            except (BleakNotFoundError, BleakConnectionError, BleakError) as err:
+                _LOGGER.error("Failed to establish connection to %s: %s", self._device.address, err)
                 raise ConnectionError(f"Failed to connect to {self._device.address}: {err}") from err
             except Exception as err:
-                _LOGGER.exception("Failed to connect to %s: %s", self._device.address, err)
+                _LOGGER.error("Unexpected error connecting to %s: %s", self._device.address, err)
                 raise ConnectionError(f"Failed to connect to {self._device.address}: {err}") from err
 
-            # Ensure services are discovered before returning
-            if not client.services:
-                _LOGGER.debug("Waiting for service discovery on %s", self._device.address)
-                # BleakClientWithServiceCache should have services available, but just in case
-                await asyncio.sleep(0.1)
-            
-            # Log all available services and characteristics for debugging
-            _LOGGER.info("Available services and characteristics on %s:", self._device.address)
-            for service in client.services:
-                _LOGGER.info("  Service: %s", service.uuid)
-                for char in service.characteristics:
-                    _LOGGER.info("    Characteristic: %s", char.uuid)
+            # Check if still connected
+            if not client.is_connected:
+                _LOGGER.error("Connection lost immediately after connect for %s", self._device.address)
+                raise ConnectionError(f"Connection lost immediately after connect for {self._device.address}")
+
+            # Acquire MTU to avoid bleak warning
+            try:
+                if hasattr(client, '_acquire_mtu'):
+                    await client._acquire_mtu()
+            except Exception as err:
+                _LOGGER.debug("Could not acquire MTU: %s", err)
+
+            _LOGGER.info("Connection established for %s", self._device.address)
 
             # Device doesn't support PIN/auth — give full permissive permissions so writes work
             self._session_data = _VogelsMotionMountSessionData(
                 client=client,
                 permissions=_make_full_permissions(),
             )
-            # Try to setup notifications but don't fail the entire connect on notification errors.
-            try:
-                await self._setup_notifications(client)
-            except Exception as err:  # pragma: no cover - runtime BLE issues
-                _LOGGER.warning("Failed to setup notifications: %s", err)
+            
+            # Start keep-alive to prevent device timeout
+            self._start_keep_alive()
+            
             if self._permission_callback:
                 self._permission_callback(self._session_data.permissions)
             if self._connection_callback:
                 self._connection_callback(self._session_data.client.is_connected)
+            
+            _LOGGER.debug("Connection setup complete for %s", self._device.address)
             return self._session_data
 
     def _handle_disconnect(self, _: BleakClient):
         """Reset session and call connection callback."""
+        self._stop_keep_alive()
         self._session_data = None
+        self._notifications_setup = False
         if self._connection_callback:
             self._connection_callback(False)
+
+    def _start_keep_alive(self):
+        """Start a periodic keep-alive to prevent device timeout."""
+        if self._keep_alive_handle is not None:
+            return  # Already running
+        _LOGGER.debug("Starting keep-alive for %s", self._device.address)
+        # Schedule keep-alive to run every 5 seconds
+        self._keep_alive_handle = asyncio.create_task(self._keep_alive_loop())
+
+    def _stop_keep_alive(self):
+        """Stop the keep-alive loop."""
+        if self._keep_alive_handle is not None:
+            _LOGGER.debug("Stopping keep-alive for %s", self._device.address)
+            self._keep_alive_handle.cancel()
+            self._keep_alive_handle = None
+
+    async def _keep_alive_loop(self):
+        """Periodically read to keep the connection alive."""
+        try:
+            while self._session_data and self._session_data.client.is_connected:
+                await asyncio.sleep(5.0)  # Keep-alive every 5 seconds
+                if not self._session_data or not self._session_data.client.is_connected:
+                    break
+                try:
+                    # Perform a simple read to signal the device we're still here
+                    await asyncio.wait_for(
+                        self._session_data.client.read_gatt_char(CHAR_DISTANCE_UUID),
+                        timeout=2.0
+                    )
+                    _LOGGER.debug("Keep-alive read successful for %s", self._device.address)
+                except asyncio.TimeoutError:
+                    _LOGGER.debug("Keep-alive read timed out for %s", self._device.address)
+                except Exception as err:
+                    # Connection might be dropping, but don't fail - let normal error handling catch it
+                    _LOGGER.debug("Keep-alive read error for %s: %s", self._device.address, err)
+        except asyncio.CancelledError:
+            _LOGGER.debug("Keep-alive loop cancelled for %s", self._device.address)
+        except Exception as err:
+            _LOGGER.debug("Keep-alive loop error for %s: %s", self._device.address, err)
 
     async def _read(self, char_uuid: str) -> bytes:
         """Read data by first connecting and then returning the read data."""
         session_data = await self._connect()
+        
+        # Wait briefly for services if not yet discovered
+        # But don't block indefinitely - the device might disconnect if we poke at it too much
+        if not session_data.client.services:
+            _LOGGER.debug("Waiting for service discovery on first read for %s", self._device.address)
+            max_wait = 5  # seconds
+            start_time = asyncio.get_event_loop().time()
+            while not session_data.client.services and (asyncio.get_event_loop().time() - start_time) < max_wait:
+                await asyncio.sleep(0.1)
+        
+        # Setup notifications on first read attempt (lazy initialization)
+        # This avoids triggering device firmware issues with eager notification setup
+        if not self._notifications_setup and session_data.client.is_connected:
+            self._notifications_setup = True
+            try:
+                await self._setup_notifications(session_data.client)
+            except Exception as err:
+                _LOGGER.debug("Failed to setup notifications on first read: %s", err)
+                # Don't fail the read if notifications fail - they're optional
+        
         max_retries = 3
         retry_delay = 1.0  # seconds
         
