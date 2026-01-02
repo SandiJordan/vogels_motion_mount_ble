@@ -31,9 +31,9 @@ Use cases:
 
 ### Manual installation
 
-1. Copy the `custom_components/vogels_motion_mount_ble` folder into `<config>/custom_components/`.
+1. Copy the `custom_components/vogels_motion_mount_next_ble` folder into `<config>/custom_components/`.
 2. Restart Home Assistant.
-3. Configure via **Settings → Devices & Services → Add integration → Vogels MotionMount (BLE)**.
+3. Configure via **Settings → Devices & Services → Add integration → Vogels MotionMount NEXT (BLE)**.
 
 ## Setup
 

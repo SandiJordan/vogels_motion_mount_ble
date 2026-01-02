@@ -7,8 +7,8 @@ from bleak.backends.device import BLEDevice
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.vogels_motion_mount_ble import VogelsMotionMountBleCoordinator
-from custom_components.vogels_motion_mount_ble.data import (
+from custom_components.vogels_motion_mount_next_ble import VogelsMotionMountNextBleCoordinator
+from custom_components.vogels_motion_mount_next_ble.data import (
     VogelsMotionMountAuthenticationStatus,
     VogelsMotionMountAuthenticationType,
     VogelsMotionMountAutoMoveType,
@@ -22,7 +22,7 @@ from custom_components.vogels_motion_mount_ble.data import (
 )
 from homeassistant.core import HomeAssistant
 
-DOMAIN = "vogels_motion_mount_ble"
+DOMAIN = "vogels_motion_mount_next_ble"
 MOCKED_CONF_ENTRY_ID = "some-entry-id"
 MOCKED_CONF_ENTRY_UNIQUE_ID = "some-entry-unique-id"
 MOCKED_CONF_DEVICE_ID = "some-device-id"
@@ -72,9 +72,9 @@ async def setup_integration(hass: HomeAssistant, config_entry: MockConfigEntry) 
 def mock_coord(mock_data: MagicMock):
     """Mock the coordinator with custom data."""
     with patch(
-        "custom_components.vogels_motion_mount_ble.VogelsMotionMountBleCoordinator"
+        "custom_components.vogels_motion_mount_next_ble.VogelsMotionMountNextBleCoordinator"
     ) as mock_coord:
-        instance = MagicMock(spec=VogelsMotionMountBleCoordinator)
+        instance = MagicMock(spec=VogelsMotionMountNextBleCoordinator)
         instance.address = MOCKED_CONF_MAC
         instance.name = MOCKED_CONF_NAME
         instance._read_data = AsyncMock()  # noqa: SLF001
@@ -124,7 +124,7 @@ def mock_conn():
 def mock_data():
     """Mock full data set."""
     with patch(
-        "custom_components.vogels_motion_mount_ble.data.VogelsMotionMountData"
+        "custom_components.vogels_motion_mount_next_ble.data.VogelsMotionMountData"
     ) as mock_data:
         instance = VogelsMotionMountData(
             automove=VogelsMotionMountAutoMoveType.Hdmi_1_On,
@@ -246,3 +246,4 @@ def mock_bledevice() -> BLEDevice:
         name=MOCKED_CONF_NAME,
         details={},
     )
+

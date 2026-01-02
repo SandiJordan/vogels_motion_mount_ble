@@ -7,7 +7,7 @@ import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 import voluptuous as vol
 
-from custom_components.vogels_motion_mount_ble.data import (
+from custom_components.vogels_motion_mount_next_ble.data import (
     VogelsMotionMountAuthenticationStatus,
     VogelsMotionMountAuthenticationType,
     VogelsMotionMountPermissions,
@@ -55,7 +55,7 @@ def make_permissions(
     )
 
 
-@patch("custom_components.vogels_motion_mount_ble.config_flow.get_permissions")
+@patch("custom_components.vogels_motion_mount_next_ble.config_flow.get_permissions")
 async def test_user_flow_success(mock_get_permissions: AsyncMock, hass: HomeAssistant):
     """Test entity is created with input data if test_connection is successful."""
     mock_get_permissions.return_value = make_permissions(
@@ -87,7 +87,7 @@ async def test_user_flow_success(mock_get_permissions: AsyncMock, hass: HomeAssi
     )
 
 
-@patch("custom_components.vogels_motion_mount_ble.config_flow.get_permissions")
+@patch("custom_components.vogels_motion_mount_next_ble.config_flow.get_permissions")
 async def test_user_flow_invalid_mac(
     mock_get_permissions: AsyncMock, hass: HomeAssistant
 ) -> None:
@@ -106,7 +106,7 @@ async def test_user_flow_invalid_mac(
     mock_get_permissions.assert_not_called()
 
 
-@patch("custom_components.vogels_motion_mount_ble.config_flow.get_permissions")
+@patch("custom_components.vogels_motion_mount_next_ble.config_flow.get_permissions")
 async def test_user_flow_authentication_error(
     mock_get_permissions: AsyncMock, hass: HomeAssistant
 ) -> None:
@@ -155,7 +155,7 @@ def mock_discovery():
         (-5, "error_invalid_authentication"),
     ],
 )
-@patch("custom_components.vogels_motion_mount_ble.config_flow.get_permissions")
+@patch("custom_components.vogels_motion_mount_next_ble.config_flow.get_permissions")
 async def test_user_flow_authentication_cooldown(
     mock_get_permissions: AsyncMock,
     hass: HomeAssistant,
@@ -250,7 +250,7 @@ async def test_user_flow_unknown_error(
 
 
 @pytest.mark.asyncio
-@patch("custom_components.vogels_motion_mount_ble.config_flow.get_permissions")
+@patch("custom_components.vogels_motion_mount_next_ble.config_flow.get_permissions")
 async def test_bluetooth_flow_creates_entry(
     mock_get_permissions: AsyncMock, hass: HomeAssistant, mock_discovery: dict[str, Any]
 ) -> None:
@@ -266,7 +266,7 @@ async def test_bluetooth_flow_creates_entry(
 
 
 @pytest.mark.asyncio
-@patch("custom_components.vogels_motion_mount_ble.config_flow.get_permissions")
+@patch("custom_components.vogels_motion_mount_next_ble.config_flow.get_permissions")
 async def test_bluetooth_id_already_exists(
     mock_get_permissions: AsyncMock, hass: HomeAssistant, mock_discovery: dict[str, Any]
 ) -> None:
@@ -292,7 +292,7 @@ async def test_bluetooth_id_already_exists(
 
 
 @pytest.mark.asyncio
-@patch("custom_components.vogels_motion_mount_ble.config_flow.get_permissions")
+@patch("custom_components.vogels_motion_mount_next_ble.config_flow.get_permissions")
 async def test_reauth_flow(
     mock_get_permissions: AsyncMock, hass: HomeAssistant
 ) -> None:
@@ -316,7 +316,7 @@ async def test_reauth_flow(
 
 
 @pytest.mark.asyncio
-@patch("custom_components.vogels_motion_mount_ble.config_flow.get_permissions")
+@patch("custom_components.vogels_motion_mount_next_ble.config_flow.get_permissions")
 async def test_reauth_entry_does_not_exist(
     mock_get_permissions: AsyncMock, hass: HomeAssistant
 ) -> None:
@@ -342,7 +342,7 @@ async def test_reauth_entry_does_not_exist(
 
 
 @pytest.mark.asyncio
-@patch("custom_components.vogels_motion_mount_ble.config_flow.get_permissions")
+@patch("custom_components.vogels_motion_mount_next_ble.config_flow.get_permissions")
 async def test_reconfigure_flow(
     mock_get_permissions: AsyncMock, hass: HomeAssistant
 ) -> None:
@@ -366,7 +366,7 @@ async def test_reconfigure_flow(
 
 
 @pytest.mark.asyncio
-@patch("custom_components.vogels_motion_mount_ble.config_flow.get_permissions")
+@patch("custom_components.vogels_motion_mount_next_ble.config_flow.get_permissions")
 async def test_reconfigure_entry_does_not_exist(
     mock_get_permissions: AsyncMock, hass: HomeAssistant
 ) -> None:
@@ -473,3 +473,4 @@ async def test_prefilled_reconfigure_flow_form(hass: HomeAssistant) -> None:
     assert validated[CONF_MAC] == MOCKED_CONF_MAC
     assert validated[CONF_NAME] == MOCKED_CONF_NAME
     assert validated[CONF_PIN] == MOCKED_CONF_PIN
+

@@ -23,8 +23,9 @@ async def test_all_entities(
 ) -> None:
     """Test all entities."""
     with patch(
-        "custom_components.vogels_motion_mount_ble.PLATFORMS", [Platform.BINARY_SENSOR]
+        "custom_components.vogels_motion_mount_next_ble.PLATFORMS", [Platform.BINARY_SENSOR]
     ):
         await setup_integration(hass, mock_config_entry)
 
     await snapshot_platform(hass, entity_registry, snapshot, mock_config_entry.entry_id)
+

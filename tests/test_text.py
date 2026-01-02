@@ -9,11 +9,11 @@ from pytest_homeassistant_custom_component.common import (
 )
 from syrupy.assertion import SnapshotAssertion
 
-from custom_components.vogels_motion_mount_ble.coordinator import (
-    VogelsMotionMountBleCoordinator,
+from custom_components.vogels_motion_mount_next_ble.coordinator import (
+    VogelsMotionMountNextBleCoordinator,
 )
-from custom_components.vogels_motion_mount_ble.data import VogelsMotionMountPresetData
-from custom_components.vogels_motion_mount_ble.text import NameText, PresetNameText
+from custom_components.vogels_motion_mount_next_ble.data import VogelsMotionMountPresetData
+from custom_components.vogels_motion_mount_next_ble.text import NameText, PresetNameText
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
@@ -32,7 +32,7 @@ async def test_all_entities(
     entity_registry: er.EntityRegistry,
 ) -> None:
     """Test all entities."""
-    with patch("custom_components.vogels_motion_mount_ble.PLATFORMS", [Platform.TEXT]):
+    with patch("custom_components.vogels_motion_mount_next_ble.PLATFORMS", [Platform.TEXT]):
         await setup_integration(hass, mock_config_entry)
 
     await snapshot_platform(hass, entity_registry, snapshot, mock_config_entry.entry_id)
@@ -44,7 +44,7 @@ async def test_all_entities(
 
 
 @pytest.mark.asyncio
-async def test_name_text_set_value(mock_coord: VogelsMotionMountBleCoordinator):
+async def test_name_text_set_value(mock_coord: VogelsMotionMountNextBleCoordinator):
     """Test setting name."""
     mock_coord.set_name = AsyncMock()
     mock_coord.data.name = "Old Name"
@@ -61,7 +61,7 @@ async def test_name_text_set_value(mock_coord: VogelsMotionMountBleCoordinator):
 
 @pytest.mark.asyncio
 async def test_preset_name_text_set_value_existing_data(
-    mock_coord: VogelsMotionMountBleCoordinator,
+    mock_coord: VogelsMotionMountNextBleCoordinator,
 ):
     """Test setting preset name."""
     preset = mock_coord.data.presets[0]
@@ -83,7 +83,7 @@ async def test_preset_name_text_set_value_existing_data(
 
 @pytest.mark.asyncio
 async def test_preset_name_text_set_value_no_existing_data(
-    mock_coord: VogelsMotionMountBleCoordinator,
+    mock_coord: VogelsMotionMountNextBleCoordinator,
 ):
     """Test setting preset name."""
     preset = mock_coord.data.presets[1]
@@ -94,3 +94,4 @@ async def test_preset_name_text_set_value_no_existing_data(
 
     # native_value should be None if no data exists
     assert entity.native_value is None
+

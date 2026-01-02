@@ -10,10 +10,10 @@ from pytest_homeassistant_custom_component.common import (
 )
 from syrupy.assertion import SnapshotAssertion
 
-from custom_components.vogels_motion_mount_ble.coordinator import (
-    VogelsMotionMountBleCoordinator,
+from custom_components.vogels_motion_mount_next_ble.coordinator import (
+    VogelsMotionMountNextBleCoordinator,
 )
-from custom_components.vogels_motion_mount_ble.switch import (
+from custom_components.vogels_motion_mount_next_ble.switch import (
     MultiPinFeatureChangeDefaultPositionSwitch,
     MultiPinFeatureChangeNameSwitch,
     MultiPinFeatureChangePresetsSwitch,
@@ -40,7 +40,7 @@ async def test_all_entities(
 ) -> None:
     """Test all entities."""
     with patch(
-        "custom_components.vogels_motion_mount_ble.PLATFORMS", [Platform.SWITCH]
+        "custom_components.vogels_motion_mount_next_ble.PLATFORMS", [Platform.SWITCH]
     ):
         await setup_integration(hass, mock_config_entry)
 
@@ -65,7 +65,7 @@ async def test_all_entities(
     ],
 )
 async def test_multi_pin_features_switch_toggle_actions(
-    mock_coord: VogelsMotionMountBleCoordinator, switch_cls, field
+    mock_coord: VogelsMotionMountNextBleCoordinator, switch_cls, field
 ):
     """Test all switch actions for multi pin features."""
     # Ensure initial field is False
@@ -91,3 +91,4 @@ async def test_multi_pin_features_switch_toggle_actions(
     await entity.async_turn_off()
     called_features = mock_coord.set_multi_pin_features.await_args[0][0]
     assert getattr(called_features, field) is False
+

@@ -8,14 +8,14 @@ from bleak_retry_connector import BleakConnectionError, BleakNotFoundError
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.vogels_motion_mount_ble.client import (
+from custom_components.vogels_motion_mount_next_ble.client import (
     VogelsMotionMountBluetoothClient,
     VogelsMotionMountClientAuthenticationError,
 )
-from custom_components.vogels_motion_mount_ble.coordinator import (
-    VogelsMotionMountBleCoordinator,
+from custom_components.vogels_motion_mount_next_ble.coordinator import (
+    VogelsMotionMountNextBleCoordinator,
 )
-from custom_components.vogels_motion_mount_ble.data import (
+from custom_components.vogels_motion_mount_next_ble.data import (
     VogelsMotionMountAuthenticationStatus,
     VogelsMotionMountAuthenticationType,
     VogelsMotionMountAutoMoveType,
@@ -75,7 +75,7 @@ async def coordinator(
     mock_data: VogelsMotionMountData,
 ):
     """Real coordinator with injected mock client."""
-    coordinator = VogelsMotionMountBleCoordinator(
+    coordinator = VogelsMotionMountNextBleCoordinator(
         hass=hass,
         config_entry=mock_config_entry,
         device=mock_bledevice,
@@ -93,7 +93,7 @@ async def coordinator(
 
 @pytest.mark.asyncio
 async def test_available_and_unavailable_callbacks(
-    coordinator: VogelsMotionMountBleCoordinator,
+    coordinator: VogelsMotionMountNextBleCoordinator,
 ):
     """Test availability callbacks."""
     # Device becomes available
@@ -110,7 +110,7 @@ async def test_available_and_unavailable_callbacks(
 
 @pytest.mark.asyncio
 async def test_available_and_unavailable_callbacks_without_data(
-    coordinator: VogelsMotionMountBleCoordinator,
+    coordinator: VogelsMotionMountNextBleCoordinator,
 ):
     """Test availability callbacks."""
     # Device becomes available
@@ -125,7 +125,7 @@ async def test_available_and_unavailable_callbacks_without_data(
 
 @pytest.mark.asyncio
 async def test_unload(
-    coordinator: VogelsMotionMountBleCoordinator,
+    coordinator: VogelsMotionMountNextBleCoordinator,
     mock_client: VogelsMotionMountBluetoothClient,
 ):
     """Test unloading of coordinator."""
@@ -158,7 +158,7 @@ async def test_unload(
 
 @pytest.mark.asyncio
 async def test_refresh_data(
-    coordinator: VogelsMotionMountBleCoordinator,
+    coordinator: VogelsMotionMountNextBleCoordinator,
     mock_client: VogelsMotionMountBluetoothClient,
 ):
     """Test refresh data action."""
@@ -173,7 +173,7 @@ async def test_refresh_data(
 
 @pytest.mark.asyncio
 async def test_select_preset(
-    coordinator: VogelsMotionMountBleCoordinator,
+    coordinator: VogelsMotionMountNextBleCoordinator,
     mock_client: VogelsMotionMountBluetoothClient,
 ):
     """Test select preset action."""
@@ -183,7 +183,7 @@ async def test_select_preset(
 
 @pytest.mark.asyncio
 async def test_start_calibration(
-    coordinator: VogelsMotionMountBleCoordinator,
+    coordinator: VogelsMotionMountNextBleCoordinator,
     mock_client: VogelsMotionMountBluetoothClient,
 ):
     """Test start calibtration action."""
@@ -198,7 +198,7 @@ async def test_start_calibration(
 
 @pytest.mark.asyncio
 async def test_request_distance(
-    coordinator: VogelsMotionMountBleCoordinator,
+    coordinator: VogelsMotionMountNextBleCoordinator,
     mock_client: VogelsMotionMountBluetoothClient,
 ):
     """Test requesting distance."""
@@ -209,7 +209,7 @@ async def test_request_distance(
 
 @pytest.mark.asyncio
 async def test_request_rotation(
-    coordinator: VogelsMotionMountBleCoordinator,
+    coordinator: VogelsMotionMountNextBleCoordinator,
     mock_client: VogelsMotionMountBluetoothClient,
 ):
     """Test requesting rotation."""
@@ -220,7 +220,7 @@ async def test_request_rotation(
 
 @pytest.mark.asyncio
 async def test_set_authorised_user_pin_success(
-    coordinator: VogelsMotionMountBleCoordinator,
+    coordinator: VogelsMotionMountNextBleCoordinator,
     mock_client: VogelsMotionMountBluetoothClient,
 ):
     """Test successful setting authorised user pin."""
@@ -231,7 +231,7 @@ async def test_set_authorised_user_pin_success(
 
 @pytest.mark.asyncio
 async def test_set_authorised_user_pin_failure(
-    coordinator: VogelsMotionMountBleCoordinator,
+    coordinator: VogelsMotionMountNextBleCoordinator,
     mock_client: VogelsMotionMountBluetoothClient,
 ):
     """Test failure setting authorised user pin."""
@@ -244,7 +244,7 @@ async def test_set_authorised_user_pin_failure(
 
 @pytest.mark.asyncio
 async def test_set_automove_success(
-    coordinator: VogelsMotionMountBleCoordinator,
+    coordinator: VogelsMotionMountNextBleCoordinator,
     mock_client: VogelsMotionMountBluetoothClient,
 ):
     """Test successful setting automove type."""
@@ -258,7 +258,7 @@ async def test_set_automove_success(
 
 @pytest.mark.asyncio
 async def test_set_automove_failure(
-    coordinator: VogelsMotionMountBleCoordinator, mock_client
+    coordinator: VogelsMotionMountNextBleCoordinator, mock_client
 ):
     """Test failure setting automove type."""
     target = VogelsMotionMountAutoMoveType(0)
@@ -269,7 +269,7 @@ async def test_set_automove_failure(
 
 @pytest.mark.asyncio
 async def test_set_freeze_preset_success(
-    coordinator: VogelsMotionMountBleCoordinator,
+    coordinator: VogelsMotionMountNextBleCoordinator,
     mock_client: VogelsMotionMountBluetoothClient,
 ):
     """Test successful setting freeze preset index."""
@@ -281,7 +281,7 @@ async def test_set_freeze_preset_success(
 
 @pytest.mark.asyncio
 async def test_set_freeze_preset_failure(
-    coordinator: VogelsMotionMountBleCoordinator, mock_client
+    coordinator: VogelsMotionMountNextBleCoordinator, mock_client
 ):
     """Test failure setting freeze preset index."""
     mock_client.read_freeze_preset_index.return_value = 9
@@ -291,7 +291,7 @@ async def test_set_freeze_preset_failure(
 
 @pytest.mark.asyncio
 async def test_set_multi_pin_features_success(
-    coordinator: VogelsMotionMountBleCoordinator,
+    coordinator: VogelsMotionMountNextBleCoordinator,
     mock_client: VogelsMotionMountBluetoothClient,
 ):
     """Test successful setting multi pin features."""
@@ -304,7 +304,7 @@ async def test_set_multi_pin_features_success(
 
 @pytest.mark.asyncio
 async def test_set_multi_pin_features_failure(
-    coordinator: VogelsMotionMountBleCoordinator, mock_client
+    coordinator: VogelsMotionMountNextBleCoordinator, mock_client
 ):
     """Test failure setting multi pin features."""
     features = replace(coordinator.data.multi_pin_features, change_presets=True)
@@ -317,7 +317,7 @@ async def test_set_multi_pin_features_failure(
 
 @pytest.mark.asyncio
 async def test_set_name_success(
-    coordinator: VogelsMotionMountBleCoordinator,
+    coordinator: VogelsMotionMountNextBleCoordinator,
     mock_client: VogelsMotionMountBluetoothClient,
 ):
     """Test successful setting name."""
@@ -329,7 +329,7 @@ async def test_set_name_success(
 
 @pytest.mark.asyncio
 async def test_set_name_failure(
-    coordinator: VogelsMotionMountBleCoordinator, mock_client
+    coordinator: VogelsMotionMountNextBleCoordinator, mock_client
 ):
     """Test failure setting name."""
     coordinator.data = replace(coordinator.data, name="Old")
@@ -340,7 +340,7 @@ async def test_set_name_failure(
 
 @pytest.mark.asyncio
 async def test_set_preset_success(
-    coordinator: VogelsMotionMountBleCoordinator,
+    coordinator: VogelsMotionMountNextBleCoordinator,
     mock_client: VogelsMotionMountBluetoothClient,
 ):
     """Test successful setting preset data."""
@@ -356,7 +356,7 @@ async def test_set_preset_success(
 
 @pytest.mark.asyncio
 async def test_set_preset_failure(
-    coordinator: VogelsMotionMountBleCoordinator,
+    coordinator: VogelsMotionMountNextBleCoordinator,
     mock_client: VogelsMotionMountBluetoothClient,
 ):
     """Test failure setting preset data."""
@@ -375,7 +375,7 @@ async def test_set_preset_failure(
 
 @pytest.mark.asyncio
 async def test_set_supervisior_pin_success(
-    coordinator: VogelsMotionMountBleCoordinator,
+    coordinator: VogelsMotionMountNextBleCoordinator,
     mock_client: VogelsMotionMountBluetoothClient,
 ):
     """Test successful setting supervisior pin."""
@@ -386,7 +386,7 @@ async def test_set_supervisior_pin_success(
 
 @pytest.mark.asyncio
 async def test_set_supervisior_pin_failure(
-    coordinator: VogelsMotionMountBleCoordinator,
+    coordinator: VogelsMotionMountNextBleCoordinator,
     mock_client: VogelsMotionMountBluetoothClient,
 ):
     """Test failure setting supervisior pin."""
@@ -399,7 +399,7 @@ async def test_set_supervisior_pin_failure(
 
 @pytest.mark.asyncio
 async def test_set_tv_width_success(
-    coordinator: VogelsMotionMountBleCoordinator,
+    coordinator: VogelsMotionMountNextBleCoordinator,
     mock_client: VogelsMotionMountBluetoothClient,
 ):
     """Test successful setting tv width."""
@@ -411,7 +411,7 @@ async def test_set_tv_width_success(
 
 @pytest.mark.asyncio
 async def test_set_tv_width_failure(
-    coordinator: VogelsMotionMountBleCoordinator,
+    coordinator: VogelsMotionMountNextBleCoordinator,
     mock_client: VogelsMotionMountBluetoothClient,
 ):
     """Test failure setting tv width."""
@@ -426,26 +426,26 @@ async def test_set_tv_width_failure(
 # -----------------------------
 
 
-def test_permissions_changed(coordinator: VogelsMotionMountBleCoordinator):
+def test_permissions_changed(coordinator: VogelsMotionMountNextBleCoordinator):
     """Test permission change callback."""
     new_perm = replace(coordinator.data.permissions, change_name=False)
     coordinator._permissions_changed(new_perm)  # noqa: SLF001
     assert coordinator.data.permissions.change_name is False
 
 
-def test_connection_changed(coordinator: VogelsMotionMountBleCoordinator):
+def test_connection_changed(coordinator: VogelsMotionMountNextBleCoordinator):
     """Test connection change callback."""
     coordinator._connection_changed(True)  # noqa: SLF001
     assert coordinator.data.connected is True
 
 
-def test_distance_changed(coordinator: VogelsMotionMountBleCoordinator):
+def test_distance_changed(coordinator: VogelsMotionMountNextBleCoordinator):
     """Test permission change callback."""
     coordinator._distance_changed(42)  # noqa: SLF001
     assert coordinator.data.distance == 42
 
 
-def test_rotation_changed(coordinator: VogelsMotionMountBleCoordinator):
+def test_rotation_changed(coordinator: VogelsMotionMountNextBleCoordinator):
     """Test rotation change callback."""
     coordinator._rotation_changed(90)  # noqa: SLF001
     assert coordinator.data.rotation == 90
@@ -458,7 +458,7 @@ def test_rotation_changed(coordinator: VogelsMotionMountBleCoordinator):
 
 @pytest.mark.asyncio
 async def test_async_update_data_propagates_entryauthfailed_on_exception(
-    coordinator: VogelsMotionMountBleCoordinator,
+    coordinator: VogelsMotionMountNextBleCoordinator,
 ):
     """Check async update data throws UpdateFailed on exception."""
     coordinator._client.read_permissions.side_effect = (  # noqa: SLF001
@@ -471,7 +471,7 @@ async def test_async_update_data_propagates_entryauthfailed_on_exception(
 
 @pytest.mark.asyncio
 async def test_async_update_data_handles_bleakconnectionerror_as_entrynotready(
-    coordinator: VogelsMotionMountBleCoordinator,
+    coordinator: VogelsMotionMountNextBleCoordinator,
 ):
     """Check async update data throws UpdateFailed on BleakConnectionError."""
     coordinator._client.read_permissions.side_effect = BleakConnectionError("boom")  # noqa: SLF001
@@ -482,7 +482,7 @@ async def test_async_update_data_handles_bleakconnectionerror_as_entrynotready(
 
 @pytest.mark.asyncio
 async def test_async_update_data_handles_bleaknotfounderror_as_entrynotready(
-    coordinator: VogelsMotionMountBleCoordinator,
+    coordinator: VogelsMotionMountNextBleCoordinator,
 ):
     """Check async update data throws UpdateFailed on BleakNotFoundError."""
     coordinator._client.read_permissions.side_effect = BleakNotFoundError("boom")  # noqa: SLF001
@@ -493,7 +493,7 @@ async def test_async_update_data_handles_bleaknotfounderror_as_entrynotready(
 
 @pytest.mark.asyncio
 async def test_async_update_data_raises_updatefailed_on_exception(
-    coordinator: VogelsMotionMountBleCoordinator,
+    coordinator: VogelsMotionMountNextBleCoordinator,
 ):
     """Check async update data throws UpdateFailed on exception."""
     coordinator._client.read_permissions.side_effect = RuntimeError("boom")  # noqa: SLF001
@@ -504,7 +504,7 @@ async def test_async_update_data_raises_updatefailed_on_exception(
 
 @pytest.mark.asyncio
 async def test_check_permission_status_raises_error(
-    coordinator: VogelsMotionMountBleCoordinator,
+    coordinator: VogelsMotionMountNextBleCoordinator,
 ):
     """It should raise ConfigEntryAuthFailed when auth_type is Wrong."""
     permissions = VogelsMotionMountPermissions(
@@ -526,7 +526,7 @@ async def test_check_permission_status_raises_error(
 
 @pytest.mark.asyncio
 async def test_call_propagates_entryauthfailed_on_exception(
-    coordinator: VogelsMotionMountBleCoordinator,
+    coordinator: VogelsMotionMountNextBleCoordinator,
 ):
     """Check async update data throws UpdateFailed on exception."""
     func = AsyncMock(
@@ -539,7 +539,7 @@ async def test_call_propagates_entryauthfailed_on_exception(
 
 @pytest.mark.asyncio
 async def test_call_handles_bleakconnectionerror_as_entrynotready(
-    coordinator: VogelsMotionMountBleCoordinator,
+    coordinator: VogelsMotionMountNextBleCoordinator,
 ):
     """Check async update data throws ServiceValidationError on BleakConnectionError."""
     func = AsyncMock(side_effect=BleakConnectionError("boom"))
@@ -550,7 +550,7 @@ async def test_call_handles_bleakconnectionerror_as_entrynotready(
 
 @pytest.mark.asyncio
 async def test_call_handles_bleaknotfounderror_as_entrynotready(
-    coordinator: VogelsMotionMountBleCoordinator,
+    coordinator: VogelsMotionMountNextBleCoordinator,
 ):
     """Check async update data throws ServiceValidationError on BleakNotFoundError."""
     func = AsyncMock(side_effect=BleakNotFoundError("boom"))
@@ -561,10 +561,11 @@ async def test_call_handles_bleaknotfounderror_as_entrynotready(
 
 @pytest.mark.asyncio
 async def test_call_raises_updatefailed_on_exception(
-    coordinator: VogelsMotionMountBleCoordinator,
+    coordinator: VogelsMotionMountNextBleCoordinator,
 ):
     """Check async update data throws ServiceValidationError on exception."""
     func = AsyncMock(side_effect=RuntimeError("boom"))
 
     with pytest.raises(ServiceValidationError):
         await coordinator._call(func)  # noqa: SLF001
+

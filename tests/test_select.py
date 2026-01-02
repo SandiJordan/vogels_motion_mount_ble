@@ -9,15 +9,15 @@ from pytest_homeassistant_custom_component.common import (
 )
 from syrupy.assertion import SnapshotAssertion
 
-from custom_components.vogels_motion_mount_ble.coordinator import (
-    VogelsMotionMountBleCoordinator,
+from custom_components.vogels_motion_mount_next_ble.coordinator import (
+    VogelsMotionMountNextBleCoordinator,
 )
-from custom_components.vogels_motion_mount_ble.data import (
+from custom_components.vogels_motion_mount_next_ble.data import (
     VogelsMotionMountAutoMoveType,
     VogelsMotionMountPreset,
     VogelsMotionMountPresetData,
 )
-from custom_components.vogels_motion_mount_ble.select import (
+from custom_components.vogels_motion_mount_next_ble.select import (
     AutomoveSelect,
     FreezePresetSelect,
 )
@@ -40,7 +40,7 @@ async def test_all_entities(
 ) -> None:
     """Test all entities."""
     with patch(
-        "custom_components.vogels_motion_mount_ble.PLATFORMS", [Platform.SELECT]
+        "custom_components.vogels_motion_mount_next_ble.PLATFORMS", [Platform.SELECT]
     ):
         await setup_integration(hass, mock_config_entry)
 
@@ -53,7 +53,7 @@ async def test_all_entities(
 
 
 @pytest.mark.asyncio
-async def test_automove_select_option_zero(mock_coord: VogelsMotionMountBleCoordinator):
+async def test_automove_select_option_zero(mock_coord: VogelsMotionMountNextBleCoordinator):
     """Test automove select option."""
     mock_coord.set_automove = AsyncMock()
     # Current automove → Hdmi_2_On (value=4)
@@ -70,7 +70,7 @@ async def test_automove_select_option_zero(mock_coord: VogelsMotionMountBleCoord
 
 @pytest.mark.asyncio
 async def test_automove_select_option_enabled(
-    mock_coord: VogelsMotionMountBleCoordinator,
+    mock_coord: VogelsMotionMountNextBleCoordinator,
 ):
     """Test automove select option."""
     mock_coord.set_automove = AsyncMock()
@@ -86,7 +86,7 @@ async def test_automove_select_option_enabled(
 
 
 @pytest.mark.asyncio
-async def test_freeze_preset_select_option(mock_coord: VogelsMotionMountBleCoordinator):
+async def test_freeze_preset_select_option(mock_coord: VogelsMotionMountNextBleCoordinator):
     """Test freeze preset option."""
     mock_coord.set_freeze_preset = AsyncMock()
     # Build presets
@@ -114,7 +114,7 @@ async def test_freeze_preset_select_option(mock_coord: VogelsMotionMountBleCoord
 
 
 def test_automove_select_current_option_off(
-    mock_coord: VogelsMotionMountBleCoordinator,
+    mock_coord: VogelsMotionMountNextBleCoordinator,
 ):
     """Test automove off option."""
     # Off case: Hdmi_3_Off = 9 → odd → maps to "0"
@@ -123,7 +123,7 @@ def test_automove_select_current_option_off(
     assert select.current_option == "0"
 
 
-def test_automove_select_current_option_on(mock_coord: VogelsMotionMountBleCoordinator):
+def test_automove_select_current_option_on(mock_coord: VogelsMotionMountNextBleCoordinator):
     """Test automove on option."""
     # On case: Hdmi_4_On = 12 → even → maps to (12 // 4) + 1 = 4
     mock_coord.data.automove = VogelsMotionMountAutoMoveType.Hdmi_4_On
@@ -132,7 +132,7 @@ def test_automove_select_current_option_on(mock_coord: VogelsMotionMountBleCoord
 
 
 def test_freeze_preset_select_current_option_none_index(
-    mock_coord: VogelsMotionMountBleCoordinator,
+    mock_coord: VogelsMotionMountNextBleCoordinator,
 ):
     """Test freeze preset no option."""
     mock_coord.data.freeze_preset_index = None
@@ -142,7 +142,7 @@ def test_freeze_preset_select_current_option_none_index(
 
 
 def test_freeze_preset_select_current_option_invalid_index(
-    mock_coord: VogelsMotionMountBleCoordinator,
+    mock_coord: VogelsMotionMountNextBleCoordinator,
 ):
     """Test freeze preset invalid index."""
     mock_coord.data.freeze_preset_index = 99  # out of range
@@ -152,7 +152,7 @@ def test_freeze_preset_select_current_option_invalid_index(
 
 
 def test_freeze_preset_select_current_option_valid(
-    mock_coord: VogelsMotionMountBleCoordinator,
+    mock_coord: VogelsMotionMountNextBleCoordinator,
 ):
     """Test freeze preset valid option."""
     presets = [
@@ -169,3 +169,4 @@ def test_freeze_preset_select_current_option_valid(
 
     # Options should be ["0", "one", "two"]
     assert select.current_option == "two"
+

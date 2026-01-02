@@ -4,15 +4,15 @@ from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
 
-from custom_components.vogels_motion_mount_ble import (
+from custom_components.vogels_motion_mount_next_ble import (
     PLATFORMS,
     async_reload_entry,
     async_setup,
     async_setup_entry,
     async_unload_entry,
 )
-from custom_components.vogels_motion_mount_ble.const import BLE_CALLBACK, DOMAIN
-from custom_components.vogels_motion_mount_ble.data import (
+from custom_components.vogels_motion_mount_next_ble.const import BLE_CALLBACK, DOMAIN
+from custom_components.vogels_motion_mount_next_ble.data import (
     VogelsMotionMountAuthenticationType,
 )
 from homeassistant.components import bluetooth
@@ -37,7 +37,7 @@ async def test_async_setup_version_too_old(
 ):
     """Test that async_setup raises RuntimeError if HA version is too old."""
     with (
-        patch("custom_components.vogels_motion_mount_ble.ha_version", "2025.5.0"),
+        patch("custom_components.vogels_motion_mount_next_ble.ha_version", "2025.5.0"),
         pytest.raises(IntegrationError),
     ):
         await async_setup(hass, mock_config_entry)
@@ -50,9 +50,9 @@ async def test_async_setup_version_ok(
 ):
     """Test that async_setup succeeds if HA version is sufficient."""
     with (
-        patch("custom_components.vogels_motion_mount_ble.ha_version", MIN_HA_VERSION),
+        patch("custom_components.vogels_motion_mount_next_ble.ha_version", MIN_HA_VERSION),
         patch(
-            "custom_components.vogels_motion_mount_ble.async_setup_services", new=Mock()
+            "custom_components.vogels_motion_mount_next_ble.async_setup_services", new=Mock()
         ) as mock_services,
     ):
         result = await async_setup(hass, mock_config_entry)
@@ -61,7 +61,7 @@ async def test_async_setup_version_ok(
 
 
 @pytest.mark.asyncio
-@patch("custom_components.vogels_motion_mount_ble.async_setup_services")
+@patch("custom_components.vogels_motion_mount_next_ble.async_setup_services")
 async def test_async_setup(
     mock_async_setup_services: MagicMock,
     mock_config_entry: MagicMock,
@@ -265,10 +265,10 @@ async def test_async_reload_entry(mock_config_entry: MagicMock):
     # Patch async_unload_entry and async_setup_entry to track calls
     with (
         patch(
-            "custom_components.vogels_motion_mount_ble.async_unload_entry", async_unload
+            "custom_components.vogels_motion_mount_next_ble.async_unload_entry", async_unload
         ),
         patch(
-            "custom_components.vogels_motion_mount_ble.async_setup_entry",
+            "custom_components.vogels_motion_mount_next_ble.async_setup_entry",
             async_setup_entry,
         ),
     ):
@@ -286,7 +286,7 @@ async def test_async_reload_entry(mock_config_entry: MagicMock):
 
 @pytest.mark.asyncio
 @patch(
-    "custom_components.vogels_motion_mount_ble.__init__.bluetooth.async_rediscover_address"
+    "custom_components.vogels_motion_mount_next_ble.__init__.bluetooth.async_rediscover_address"
 )
 async def test_async_unload_entry_success(
     mock_rediscover: AsyncMock, mock_config_entry: MagicMock
@@ -308,7 +308,7 @@ async def test_async_unload_entry_success(
 
 @pytest.mark.asyncio
 @patch(
-    "custom_components.vogels_motion_mount_ble.__init__.bluetooth.async_rediscover_address"
+    "custom_components.vogels_motion_mount_next_ble.__init__.bluetooth.async_rediscover_address"
 )
 async def test_async_unload_entry_failure(
     mock_rediscover: AsyncMock, mock_config_entry: MagicMock
@@ -329,3 +329,4 @@ async def test_async_unload_entry_failure(
     )
     coordinator.unload.assert_not_awaited()
     mock_rediscover.assert_not_called()
+

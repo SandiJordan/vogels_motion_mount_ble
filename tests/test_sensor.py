@@ -8,7 +8,7 @@ from pytest_homeassistant_custom_component.common import (
 )
 from syrupy.assertion import SnapshotAssertion
 
-from custom_components.vogels_motion_mount_ble.sensor import (
+from custom_components.vogels_motion_mount_next_ble.sensor import (
     DistanceSensor,
     RotationSensor,
 )
@@ -31,7 +31,7 @@ async def test_all_entities(
 ) -> None:
     """Test all entities."""
     with patch(  # noqa: SIM117
-        "custom_components.vogels_motion_mount_ble.PLATFORMS", [Platform.SENSOR]
+        "custom_components.vogels_motion_mount_next_ble.PLATFORMS", [Platform.SENSOR]
     ):
         with patch.object(
             DistanceSensor, "_attr_entity_registry_enabled_default", True
@@ -42,3 +42,4 @@ async def test_all_entities(
                 await setup_integration(hass, mock_config_entry)
 
     await snapshot_platform(hass, entity_registry, snapshot, mock_config_entry.entry_id)
+

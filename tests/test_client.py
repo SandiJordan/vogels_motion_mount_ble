@@ -7,7 +7,7 @@ from bleak import BleakClient
 from bleak.backends.device import BLEDevice
 import pytest
 
-from custom_components.vogels_motion_mount_ble.client import (
+from custom_components.vogels_motion_mount_next_ble.client import (
     VogelsMotionMountBluetoothClient,
     VogelsMotionMountClientAuthenticationError,
     _encode_supervisior_pin,
@@ -17,7 +17,7 @@ from custom_components.vogels_motion_mount_ble.client import (
     _VogelsMotionMountSessionData,
     get_permissions,
 )
-from custom_components.vogels_motion_mount_ble.const import (
+from custom_components.vogels_motion_mount_next_ble.const import (
     CHAR_AUTHENTICATE_UUID,
     CHAR_AUTOMOVE_UUID,
     CHAR_CALIBRATE_UUID,
@@ -33,7 +33,7 @@ from custom_components.vogels_motion_mount_ble.const import (
     CHAR_VERSIONS_MCP_UUID,
     CHAR_WIDTH_UUID,
 )
-from custom_components.vogels_motion_mount_ble.data import (
+from custom_components.vogels_motion_mount_next_ble.data import (
     VogelsMotionMountAuthenticationStatus,
     VogelsMotionMountAuthenticationType,
     VogelsMotionMountAutoMoveType,
@@ -532,7 +532,7 @@ async def test_connect_is_singleton():
 
     with (
         patch(
-            "custom_components.vogels_motion_mount_ble.client.establish_connection",
+            "custom_components.vogels_motion_mount_next_ble.client.establish_connection",
             establish_connection,
         ),
     ):
@@ -593,11 +593,11 @@ async def test_connect_sets_session_and_triggers_callbacks(mock_dev):
     )
     with (
         patch(
-            "custom_components.vogels_motion_mount_ble.client.establish_connection",
+            "custom_components.vogels_motion_mount_next_ble.client.establish_connection",
             return_value=mock_client,
         ),
         patch(
-            "custom_components.vogels_motion_mount_ble.client.get_permissions",
+            "custom_components.vogels_motion_mount_next_ble.client.get_permissions",
             return_value=mock_perms,
         ),
     ):
@@ -708,7 +708,7 @@ async def test_get_permissions_full_returns_all_true():
         auth_type=VogelsMotionMountAuthenticationType.Full
     )
     with patch(
-        "custom_components.vogels_motion_mount_ble.client._get_max_auth_status",
+        "custom_components.vogels_motion_mount_next_ble.client._get_max_auth_status",
         return_value=status,
     ):
         perms = await get_permissions(mock_client, 1234)
@@ -732,11 +732,11 @@ async def test_get_permissions_control_reads_features():
     )
     with (
         patch(
-            "custom_components.vogels_motion_mount_ble.client._get_max_auth_status",
+            "custom_components.vogels_motion_mount_next_ble.client._get_max_auth_status",
             return_value=status,
         ),
         patch(
-            "custom_components.vogels_motion_mount_ble.client._read_multi_pin_features_directly",
+            "custom_components.vogels_motion_mount_next_ble.client._read_multi_pin_features_directly",
             return_value=features,
         ),
     ):
@@ -755,7 +755,7 @@ async def test_get_permissions_wrong_returns_all_false():
         auth_type=VogelsMotionMountAuthenticationType.Wrong
     )
     with patch(
-        "custom_components.vogels_motion_mount_ble.client._get_max_auth_status",
+        "custom_components.vogels_motion_mount_next_ble.client._get_max_auth_status",
         return_value=status,
     ):
         perms = await get_permissions(mock_client, 1234)
@@ -770,7 +770,7 @@ async def test_get_max_auth_status_with_pin_supervisor_then_authorised():
     mock_client = AsyncMock()
     # First call returns Wrong, second returns Control
     with patch(
-        "custom_components.vogels_motion_mount_ble.client._get_auth_status",
+        "custom_components.vogels_motion_mount_next_ble.client._get_auth_status",
         side_effect=[
             VogelsMotionMountAuthenticationStatus(
                 auth_type=VogelsMotionMountAuthenticationType.Control
@@ -793,7 +793,7 @@ async def test_get_max_auth_status_supervisor_succeeds():
     )
 
     with patch(
-        "custom_components.vogels_motion_mount_ble.client._get_auth_status",
+        "custom_components.vogels_motion_mount_next_ble.client._get_auth_status",
         return_value=expected_status,
     ) as mock_get_auth:
         result = await _get_max_auth_status(mock_client, 9999)
@@ -823,7 +823,7 @@ async def test_get_max_auth_status_falls_back_to_authorised_user():
     )
 
     with patch(
-        "custom_components.vogels_motion_mount_ble.client._get_auth_status",
+        "custom_components.vogels_motion_mount_next_ble.client._get_auth_status",
         side_effect=[first_status, second_status],
     ):
         result = await _get_max_auth_status(mock_client, 4321)
@@ -853,7 +853,7 @@ async def test_get_max_auth_status_without_pin():
         auth_type=VogelsMotionMountAuthenticationType.Full
     )
     with patch(
-        "custom_components.vogels_motion_mount_ble.client._get_auth_status",
+        "custom_components.vogels_motion_mount_next_ble.client._get_auth_status",
         return_value=status,
     ):
         result = await _get_max_auth_status(mock_client, None)
@@ -894,3 +894,4 @@ async def test_read_multi_pin_features_directly_maps_bits():
     assert result.change_default_position
     assert not result.change_name
     assert not result.change_tv_on_off_detection
+

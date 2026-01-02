@@ -9,14 +9,14 @@ from pytest_homeassistant_custom_component.common import (
 )
 from syrupy.assertion import SnapshotAssertion
 
-from custom_components.vogels_motion_mount_ble.coordinator import (
-    VogelsMotionMountBleCoordinator,
+from custom_components.vogels_motion_mount_next_ble.coordinator import (
+    VogelsMotionMountNextBleCoordinator,
 )
-from custom_components.vogels_motion_mount_ble.data import (
+from custom_components.vogels_motion_mount_next_ble.data import (
     VogelsMotionMountPreset,
     VogelsMotionMountPresetData,
 )
-from custom_components.vogels_motion_mount_ble.number import (
+from custom_components.vogels_motion_mount_next_ble.number import (
     DistanceNumber,
     PresetDistanceNumber,
     PresetRotationNumber,
@@ -42,7 +42,7 @@ async def test_all_entities(
 ) -> None:
     """Test all entities."""
     with patch(
-        "custom_components.vogels_motion_mount_ble.PLATFORMS", [Platform.NUMBER]
+        "custom_components.vogels_motion_mount_next_ble.PLATFORMS", [Platform.NUMBER]
     ):
         await setup_integration(hass, mock_config_entry)
 
@@ -55,7 +55,7 @@ async def test_all_entities(
 
 
 @pytest.mark.asyncio
-async def test_set_distance_number(mock_coord: VogelsMotionMountBleCoordinator):
+async def test_set_distance_number(mock_coord: VogelsMotionMountNextBleCoordinator):
     """Set distance number."""
     number = DistanceNumber(mock_coord)
     await number.async_set_native_value(42.7)
@@ -63,7 +63,7 @@ async def test_set_distance_number(mock_coord: VogelsMotionMountBleCoordinator):
 
 
 @pytest.mark.asyncio
-async def test_set_rotation_number(mock_coord: VogelsMotionMountBleCoordinator):
+async def test_set_rotation_number(mock_coord: VogelsMotionMountNextBleCoordinator):
     """Set distance number."""
     number = RotationNumber(mock_coord)
     await number.async_set_native_value(-33.9)
@@ -71,7 +71,7 @@ async def test_set_rotation_number(mock_coord: VogelsMotionMountBleCoordinator):
 
 
 @pytest.mark.asyncio
-async def test_set_tv_width_number(mock_coord: VogelsMotionMountBleCoordinator):
+async def test_set_tv_width_number(mock_coord: VogelsMotionMountNextBleCoordinator):
     """Set tv width number."""
     number = TVWidthNumber(mock_coord)
     await number.async_set_native_value(123.4)
@@ -79,7 +79,7 @@ async def test_set_tv_width_number(mock_coord: VogelsMotionMountBleCoordinator):
 
 
 @pytest.mark.asyncio
-async def test_set_preset_distance_number(mock_coord: VogelsMotionMountBleCoordinator):
+async def test_set_preset_distance_number(mock_coord: VogelsMotionMountNextBleCoordinator):
     """Set preset distance number."""
     # preset with existing data
     preset = VogelsMotionMountPreset(
@@ -98,7 +98,7 @@ async def test_set_preset_distance_number(mock_coord: VogelsMotionMountBleCoordi
 
 
 @pytest.mark.asyncio
-async def test_set_preset_rotation_number(mock_coord: VogelsMotionMountBleCoordinator):
+async def test_set_preset_rotation_number(mock_coord: VogelsMotionMountNextBleCoordinator):
     """Set preset rotation number."""
     preset = VogelsMotionMountPreset(
         index=1,
@@ -120,7 +120,7 @@ async def test_set_preset_rotation_number(mock_coord: VogelsMotionMountBleCoordi
 
 
 def test_distance_number_native_value_no_data(
-    mock_coord: VogelsMotionMountBleCoordinator,
+    mock_coord: VogelsMotionMountNextBleCoordinator,
 ):
     """Test distance no data."""
     mock_coord.data = None
@@ -129,7 +129,7 @@ def test_distance_number_native_value_no_data(
 
 
 def test_distance_number_native_value_requested(
-    mock_coord: VogelsMotionMountBleCoordinator,
+    mock_coord: VogelsMotionMountNextBleCoordinator,
 ):
     """Request distance."""
     mock_coord.data.requested_distance = 42
@@ -139,7 +139,7 @@ def test_distance_number_native_value_requested(
 
 
 def test_distance_number_native_value_fallback(
-    mock_coord: VogelsMotionMountBleCoordinator,
+    mock_coord: VogelsMotionMountNextBleCoordinator,
 ):
     """Fallback to current distance if no distance was requested."""
     mock_coord.data.requested_distance = None
@@ -149,7 +149,7 @@ def test_distance_number_native_value_fallback(
 
 
 def test_rotation_number_native_value_no_data(
-    mock_coord: VogelsMotionMountBleCoordinator,
+    mock_coord: VogelsMotionMountNextBleCoordinator,
 ):
     """Test rotation no data."""
     mock_coord.data = None
@@ -158,7 +158,7 @@ def test_rotation_number_native_value_no_data(
 
 
 def test_rotation_number_native_value_requested(
-    mock_coord: VogelsMotionMountBleCoordinator,
+    mock_coord: VogelsMotionMountNextBleCoordinator,
 ):
     """Request rotation."""
     mock_coord.data.requested_rotation = -33
@@ -168,7 +168,7 @@ def test_rotation_number_native_value_requested(
 
 
 def test_rotation_number_native_value_fallback(
-    mock_coord: VogelsMotionMountBleCoordinator,
+    mock_coord: VogelsMotionMountNextBleCoordinator,
 ):
     """Fallback to current rotation if no rotation was requested."""
     mock_coord.data.requested_rotation = None
@@ -178,7 +178,7 @@ def test_rotation_number_native_value_fallback(
 
 
 def test_preset_distance_number_native_value_none(
-    mock_coord: VogelsMotionMountBleCoordinator,
+    mock_coord: VogelsMotionMountNextBleCoordinator,
 ):
     """Test preset distance no data."""
     # Preset with no data
@@ -189,7 +189,7 @@ def test_preset_distance_number_native_value_none(
 
 
 def test_preset_distance_number_native_value_with_data(
-    mock_coord: VogelsMotionMountBleCoordinator,
+    mock_coord: VogelsMotionMountNextBleCoordinator,
 ):
     """Test preset distance."""
     # Preset with data
@@ -202,7 +202,7 @@ def test_preset_distance_number_native_value_with_data(
 
 
 def test_preset_rotation_number_native_value_none(
-    mock_coord: VogelsMotionMountBleCoordinator,
+    mock_coord: VogelsMotionMountNextBleCoordinator,
 ):
     """Test preset rotation no data."""
     # Preset with no data
@@ -213,7 +213,7 @@ def test_preset_rotation_number_native_value_none(
 
 
 def test_preset_rotation_number_native_value_with_data(
-    mock_coord: VogelsMotionMountBleCoordinator,
+    mock_coord: VogelsMotionMountNextBleCoordinator,
 ):
     """Test preset rotation."""
     # Preset with data
@@ -223,3 +223,4 @@ def test_preset_rotation_number_native_value_with_data(
     mock_coord.data.presets = [preset]
     number = PresetRotationNumber(mock_coord, preset_index=0)
     assert number.native_value == -15
+

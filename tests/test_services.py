@@ -4,11 +4,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from custom_components.vogels_motion_mount_ble import services
-from custom_components.vogels_motion_mount_ble.client import (
+from custom_components.vogels_motion_mount_next_ble import services
+from custom_components.vogels_motion_mount_next_ble.client import (
     VogelsMotionMountClientAuthenticationError,
 )
-from custom_components.vogels_motion_mount_ble.services import (
+from custom_components.vogels_motion_mount_next_ble.services import (
     DOMAIN,
     HA_SERVICE_DEVICE_ID,
     HA_SERVICE_PIN_ID,
@@ -199,3 +199,4 @@ async def test_get_coordinator_invalid_runtime_data_raises(
     )
     with pytest.raises(ServiceValidationError):
         services._get_coordinator(call)  # noqa: SLF001
+

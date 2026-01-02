@@ -4,11 +4,11 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from custom_components.vogels_motion_mount_ble.base import (
-    VogelsMotionMountBleBaseEntity,
+from custom_components.vogels_motion_mount_next_ble.base import (
+    VogelsMotionMountNextBleBaseEntity,
 )
-from custom_components.vogels_motion_mount_ble.coordinator import (
-    VogelsMotionMountBleCoordinator,
+from custom_components.vogels_motion_mount_next_ble.coordinator import (
+    VogelsMotionMountNextBleCoordinator,
 )
 from homeassistant.core import HomeAssistant
 
@@ -16,12 +16,12 @@ from homeassistant.core import HomeAssistant
 @pytest.mark.asyncio
 async def test_handle_coordinator_update_triggers_state_write(
     hass: HomeAssistant,
-    mock_coord: VogelsMotionMountBleCoordinator,
+    mock_coord: VogelsMotionMountNextBleCoordinator,
 ):
     """Test that _handle_coordinator_update calls async_write_ha_state."""
 
     # Create entity with coordinator
-    entity = VogelsMotionMountBleBaseEntity(mock_coord)
+    entity = VogelsMotionMountNextBleBaseEntity(mock_coord)
 
     # Patch async_write_ha_state
     entity.async_write_ha_state = MagicMock()
@@ -31,3 +31,4 @@ async def test_handle_coordinator_update_triggers_state_write(
 
     # Verify async_write_ha_state was called
     entity.async_write_ha_state.assert_called_once()
+
