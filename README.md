@@ -1,6 +1,6 @@
 # Vogel's MotionMount NEXT Bluetooth Home Assistant Integratioon
 
-Home Assistant integration allows to control the Vogel's MotionMount NEXT over Bluetooth Low Energy (BLE). It has been tested with NEXT 7355 model, but probably works with all NEXT models that do not require any authentication via PN.
+Home Assistant integration allows to control the Vogel's MotionMount NEXT over Bluetooth Low Energy (BLE). It has been tested with NEXT 7355 model, but probably works with all NEXT models that do not require any authentication via PIN.
 
 ## High-level description & use cases
 
