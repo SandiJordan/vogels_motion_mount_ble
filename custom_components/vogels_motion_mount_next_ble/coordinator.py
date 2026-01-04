@@ -46,6 +46,9 @@ PARALLEL_UPDATES = 1
 # during development/testing with repeated restarts.
 DISCONNECT_COOLDOWN_SECONDS = 30
 
+# Maximum number of consecutive reconnection attempts before requiring a longer cooldown
+MAX_RECONNECT_ATTEMPTS = 20
+
 
 class VogelsMotionMountNextBleCoordinator(DataUpdateCoordinator[VogelsMotionMountData]):
     """Vogels Motion Mount NEXT BLE coordinator."""
@@ -72,6 +75,7 @@ class VogelsMotionMountNextBleCoordinator(DataUpdateCoordinator[VogelsMotionMoun
         self._load_ble_disconnect_timeout(config_entry)
         self._last_activity_time = dt_util.utcnow()
         self._disconnect_timer_handle = None
+        self._is_discovered = False  # Track if device is discovered (seen via BLE scan)
 
         # Create client
         self._client = VogelsMotionMountBluetoothClient(
@@ -146,45 +150,11 @@ class VogelsMotionMountNextBleCoordinator(DataUpdateCoordinator[VogelsMotionMoun
     def _available_callback(
         self, info: BluetoothServiceInfoBleak, change: BluetoothChange
     ) -> None:
-        _LOGGER.debug("%s is discovered again", info.address)
+        # Device is available (discovered via Bluetooth scan)
+        # However, we don't auto-connect anymore. User must manually click the Connect button.
+        _LOGGER.debug("%s is discovered, waiting for manual connection", info.address)
+        self._is_discovered = True  # Mark device as discovered
         self._reconnect_attempts = 0  # Reset retry counter
-        self._update_activity_timer()
-        
-        # Check if we should honor the disconnect cooldown.
-        # The device has DDoS prevention that triggers on rapid reconnects,
-        # so we enforce a minimum cooldown period after disconnect.
-        now = dt_util.utcnow()
-        time_since_disconnect = (
-            (now - self._last_disconnect_time).total_seconds()
-            if self._last_disconnect_time
-            else float('inf')
-        )
-        
-        if time_since_disconnect >= DISCONNECT_COOLDOWN_SECONDS:
-            # Enough time has passed, safe to reconnect
-            self._last_disconnect_time = None
-            self._last_connection_attempt_time = now
-            self.hass.async_create_task(self.async_request_refresh())
-            _LOGGER.debug(
-                "Device %s is available. Reconnecting after %.1f second cooldown.",
-                self.address,
-                time_since_disconnect,
-            )
-        else:
-            # Still in cooldown period - wait before reconnecting
-            cooldown_remaining = DISCONNECT_COOLDOWN_SECONDS - time_since_disconnect
-            _LOGGER.warning(
-                "Device %s is available but still in disconnect cooldown. "
-                "Waiting %.1f more seconds before reconnecting. "
-                "(Tip: Rapid restarts trigger device DDoS protection - consider longer delays between deploys)",
-                self.address,
-                cooldown_remaining,
-            )
-            # Schedule a refresh after the cooldown expires
-            self.hass.loop.call_later(
-                cooldown_remaining,
-                lambda: self.hass.async_create_task(self.async_request_refresh()),
-            )
 
     def _cancel_disconnect_timer(self) -> None:
         """Cancel the disconnect timer if active."""
@@ -218,6 +188,7 @@ class VogelsMotionMountNextBleCoordinator(DataUpdateCoordinator[VogelsMotionMoun
 
     def _unavailable_callback(self, info: BluetoothServiceInfoBleak) -> None:
         _LOGGER.debug("%s is no longer seen", info.address)
+        self._is_discovered = False  # Mark device as not discovered
         self._set_unavailable()
 
     async def unload(self):
@@ -270,6 +241,11 @@ class VogelsMotionMountNextBleCoordinator(DataUpdateCoordinator[VogelsMotionMoun
     async def start_calibration(self):
         """Start calibration process."""
         await self._call(self._client.start_calibration)
+
+    @property
+    def is_discovered(self) -> bool:
+        """Return whether the device has been discovered via Bluetooth scan."""
+        return self._is_discovered
 
     # -------------------------------
     # region Config
@@ -458,9 +434,42 @@ class VogelsMotionMountNextBleCoordinator(DataUpdateCoordinator[VogelsMotionMoun
 
     async def _async_update_data(self) -> VogelsMotionMountData:
         """Fetch data from device."""
+        # NEW BEHAVIOR: Only fetch data if already connected.
+        # Do not attempt to auto-connect during periodic updates.
+        if not self._client.is_connected:
+            _LOGGER.debug(
+                "Device %s not connected. Skipping update. Click the Connect button to establish connection.",
+                self.address,
+            )
+            # Return None or raise UpdateFailed to keep the coordinator offline until user connects
+            raise UpdateFailed(
+                translation_key="error_device_not_found",
+                translation_placeholders={
+                    "error": "Device not connected. Click the 'Connect' button to establish connection."
+                },
+            )
+        
         # Retry once on transient connection errors (e.g., device not immediately ready after disconnect)
         max_retries = 2
         last_error = None
+        
+        # Check if we've exceeded max reconnect attempts
+        if self._reconnect_attempts >= MAX_RECONNECT_ATTEMPTS:
+            _LOGGER.error(
+                "Maximum reconnection attempts (%d) exceeded for %s. "
+                "Device may have DDoS protection active or is offline. "
+                "Please ensure your Bluetooth adapter is functioning and the device is powered on.",
+                MAX_RECONNECT_ATTEMPTS,
+                self.address,
+            )
+            await self._async_handle_connection_error()
+            raise UpdateFailed(
+                translation_key="error_unknown",
+                translation_placeholders={
+                    "error": f"Maximum reconnection attempts ({MAX_RECONNECT_ATTEMPTS}) exceeded. "
+                             "Check device is powered on and Bluetooth is functioning."
+                },
+            )
         
         for attempt in range(max_retries):
             try:
@@ -621,7 +630,8 @@ class VogelsMotionMountNextBleCoordinator(DataUpdateCoordinator[VogelsMotionMoun
         """Async version of handle connection error with automatic retry scheduling.
         
         Enforces both exponential backoff (for adapter recovery) and disconnect cooldown
-        (to respect device DDoS prevention).
+        (to respect device DDoS prevention). Also implements a maximum retry limit to
+        prevent infinite reconnection loops when device is genuinely offline.
         """
         self._reconnect_attempts += 1
         self._last_disconnect_time = dt_util.utcnow()
@@ -636,17 +646,42 @@ class VogelsMotionMountNextBleCoordinator(DataUpdateCoordinator[VogelsMotionMoun
         except Exception as err:
             _LOGGER.debug("Error while disconnecting during error handling: %s", err)
         
+        # Check if we've hit the max retry limit for aggressive backoff
+        if self._reconnect_attempts > MAX_RECONNECT_ATTEMPTS:
+            _LOGGER.critical(
+                "Maximum reconnection attempts (%d) exceeded for %s. "
+                "Giving up. The device is likely offline or has DDoS protection active.",
+                MAX_RECONNECT_ATTEMPTS,
+                self.address,
+            )
+            self._set_unavailable()
+            return
+        
         # Calculate retry delay using exponential backoff
-        # But also respect the device's disconnect cooldown (30 seconds minimum)
-        exponential_delay = min(10.0 + (self._reconnect_attempts * 5), 30)
-        retry_delay = max(exponential_delay, DISCONNECT_COOLDOWN_SECONDS)
+        # For first few attempts: quick retry (30-60 seconds)
+        # For later attempts: longer delays (up to 2+ minutes)
+        # Always respect the minimum disconnect cooldown
+        if self._reconnect_attempts <= 5:
+            # First few attempts: 30-60 second backoff
+            exponential_delay = DISCONNECT_COOLDOWN_SECONDS + (self._reconnect_attempts * 5)
+        elif self._reconnect_attempts <= 10:
+            # Middle attempts: 1-2 minute backoff
+            exponential_delay = 60 + (self._reconnect_attempts * 10)
+        else:
+            # Late attempts: 2+ minute backoff
+            exponential_delay = 120 + ((self._reconnect_attempts - 10) * 15)
+        
+        # Cap at 5 minutes to avoid excessively long waits
+        retry_delay = min(exponential_delay, 300.0)
+        retry_delay = max(retry_delay, DISCONNECT_COOLDOWN_SECONDS)
         
         _LOGGER.info(
-            "Scheduling automatic reconnection for %s in %.1f seconds (attempt %d). "
+            "Scheduling automatic reconnection for %s in %.1f seconds (attempt %d/%d). "
             "This delay respects both adapter recovery time and device DDoS protection.",
             self.address,
             retry_delay,
             self._reconnect_attempts,
+            MAX_RECONNECT_ATTEMPTS,
         )
         self.hass.loop.call_later(retry_delay, lambda: self.hass.async_create_task(self.async_request_refresh()))
 

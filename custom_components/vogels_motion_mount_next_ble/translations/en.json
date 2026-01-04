@@ -149,6 +149,9 @@
   },
   "entity": {
     "binary_sensor": {
+      "discovered": {
+        "name": "Discovered"
+      },
       "connection": {
         "name": "Connection"
       }
@@ -167,7 +170,7 @@
         "name": "Disconnect"
       },
       "select_preset_default": {
-        "name": "Home"
+        "name": "Wall"
       },
       "select_preset_custom": {
         "name": "{preset_name}"
@@ -181,10 +184,10 @@
     },
     "number": {
       "distance": {
-        "name": "Distance"
+        "name": "Manual Distance"
       },
       "rotation": {
-        "name": "Rotation"
+        "name": "Manual Rotation"
       },
       "tv_width": {
         "name": "TV width"
@@ -226,6 +229,9 @@
       }
     },
     "sensor": {
+      "discovery_status": {
+        "name": "BLE Discovered"
+      },
       "current_distance": {
         "name": "Distance"
       },

@@ -23,10 +23,7 @@ async def async_setup_entry(
     """Set up the RefreshData and SelectPreset buttons."""
     coordinator: VogelsMotionMountNextBleCoordinator = config_entry.runtime_data
 
-    switches = [ConnectionSwitch(coordinator)]
-    
-    # Add preset switches for all 7 preset slots
-    switches.extend([PresetSwitch(coordinator, preset_index) for preset_index in range(7)])
+    switches = [PresetSwitch(coordinator, preset_index) for preset_index in range(7)]
     
     async_add_entities(switches)
     
@@ -40,27 +37,6 @@ async def async_setup_entry(
                 # Check if it's old format (count underscores = 2, not 3)
                 if entity.unique_id.count("_") == 2:
                     entity_registry.async_remove(entity.entity_id)
-
-
-class ConnectionSwitch(VogelsMotionMountNextBleBaseEntity, SwitchEntity):
-    """Switch to control BLE device connection."""
-
-    _attr_unique_id = "connection"
-    _attr_translation_key = "connection"
-    _attr_icon = "mdi:power-plug"
-
-    @property
-    def is_on(self) -> bool:
-        """Return True if device is connected."""
-        return self.coordinator.data.connected
-
-    async def async_turn_on(self, **kwargs: Any) -> None:
-        """Turn on (connect) the device."""
-        await self.coordinator.connect()
-
-    async def async_turn_off(self, **kwargs: Any) -> None:
-        """Turn off (disconnect) the device."""
-        await self.coordinator.disconnect()
 
 
 class PresetSwitch(VogelsMotionMountNextBlePresetBaseEntity, SwitchEntity):
@@ -85,10 +61,10 @@ class PresetSwitch(VogelsMotionMountNextBlePresetBaseEntity, SwitchEntity):
 
     @property
     def available(self) -> bool:
-        """Always available to toggle presets on/off, regardless of data state."""
+        """Available when connected and user has permission to change presets."""
         return (
             self.coordinator.data is not None
-            and self.coordinator.data.available
+            and self.coordinator.data.connected
             and self.coordinator.data.permissions.change_presets
         )
 

@@ -23,16 +23,17 @@ async def async_setup_entry(
     coordinator: VogelsMotionMountNextBleCoordinator = config_entry.runtime_data
 
     buttons = [
+        ConnectButton(coordinator),
+        DisconnectButton(coordinator),
         StartCalibrationButton(coordinator),
         RefreshDataButton(coordinator),
         SelectPresetDefaultButton(coordinator),
     ]
 
-    # Only create select preset buttons for presets that have data
-    if coordinator.data:
-        for preset_index in range(7):
-            if coordinator.data.presets[preset_index].data is not None:
-                buttons.append(SelectPresetButton(coordinator, preset_index))
+    # Create select preset buttons for all 7 presets
+    # Availability will be controlled by the entities themselves
+    for preset_index in range(7):
+        buttons.append(SelectPresetButton(coordinator, preset_index))
 
     async_add_entities(buttons)
 
@@ -55,6 +56,40 @@ async def async_setup_entry(
                     pass
 
 
+class ConnectButton(VogelsMotionMountNextBleBaseEntity, ButtonEntity):
+    """Button to manually connect to the BLE device."""
+
+    _attr_unique_id = "connect"
+    _attr_translation_key = _attr_unique_id
+    _attr_icon = "mdi:bluetooth-connect"
+
+    @property
+    def available(self) -> bool:
+        """Always available to try connecting."""
+        return True
+
+    async def async_press(self):
+        """Execute connect."""
+        await self.coordinator.connect()
+
+
+class DisconnectButton(VogelsMotionMountNextBleBaseEntity, ButtonEntity):
+    """Button to manually disconnect from the BLE device."""
+
+    _attr_unique_id = "disconnect"
+    _attr_translation_key = _attr_unique_id
+    _attr_icon = "mdi:bluetooth-off"
+
+    @property
+    def available(self) -> bool:
+        """Only available when device is connected."""
+        return self.coordinator.data is not None and self.coordinator.data.connected
+
+    async def async_press(self):
+        """Execute disconnect."""
+        await self.coordinator.disconnect()
+
+
 class StartCalibrationButton(VogelsMotionMountNextBleBaseEntity, ButtonEntity):
     """Set up the Button that provides an action to start the calibration."""
 
@@ -65,8 +100,12 @@ class StartCalibrationButton(VogelsMotionMountNextBleBaseEntity, ButtonEntity):
 
     @property
     def available(self) -> bool:
-        """Set availability if user has permission."""
-        return super().available and self.coordinator.data.permissions.start_calibration
+        """Set availability if connected and user has permission."""
+        return (
+            self.coordinator.data is not None 
+            and self.coordinator.data.connected 
+            and self.coordinator.data.permissions.start_calibration
+        )
 
     async def async_press(self):
         """Execute start calibration."""
@@ -83,8 +122,8 @@ class RefreshDataButton(VogelsMotionMountNextBleBaseEntity, ButtonEntity):
 
     @property
     def available(self) -> bool:
-        """Always available to try refresh data."""
-        return True
+        """Only available when connected."""
+        return self.coordinator.data is not None and self.coordinator.data.connected
 
     async def async_press(self):
         """Execute data refresh."""
@@ -97,6 +136,11 @@ class SelectPresetDefaultButton(VogelsMotionMountNextBleBaseEntity, ButtonEntity
     _attr_unique_id = "select_preset_default"
     _attr_translation_key = "select_preset_default"
     _attr_icon = "mdi:wall"
+
+    @property
+    def available(self) -> bool:
+        """Only available when connected."""
+        return self.coordinator.data is not None and self.coordinator.data.connected
 
     async def async_press(self):
         """Return to home position (wall: distance=0, rotation=0)."""
@@ -134,15 +178,19 @@ class SelectPresetButton(VogelsMotionMountNextBlePresetBaseEntity, ButtonEntity)
     def name(self) -> str:
         """Return button name with current preset name."""
         if self._preset is None or not self._preset.data:
-            return f"Preset {self._preset_index}"
+            return f"Preset {self._preset_index + 1}"
         return self._preset.data.name
 
     @property
     def available(self) -> bool:
-        """Only show button if preset has data."""
+        """Only available if connected and preset has data."""
         if self._preset is None:
             return False
-        return super().available and self._preset.data is not None
+        return (
+            self.coordinator.data is not None 
+            and self.coordinator.data.connected 
+            and self._preset.data is not None
+        )
 
     @callback
     def _handle_coordinator_update(self) -> None:

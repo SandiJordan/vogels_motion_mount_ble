@@ -23,7 +23,7 @@ async def async_setup_entry(
 
     async_add_entities(
         [
-            NameText(coordinator),
+            # NameText entity is hidden from UI - code kept for future use
         ]
     )
 
@@ -63,6 +63,7 @@ class NameText(VogelsMotionMountNextBleBaseEntity, TextEntity):
     _attr_native_max = 20
     _attr_icon = "mdi:rename-box-outline"
     _attr_entity_category = EntityCategory.CONFIG
+    _attr_hidden = True  # Hide from UI but keep in code for future use
 
     @property
     def native_value(self):

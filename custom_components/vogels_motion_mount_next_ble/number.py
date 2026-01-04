@@ -26,12 +26,11 @@ async def async_setup_entry(
         RotationNumber(coordinator),
     ]
 
-    # Only create preset distance/rotation numbers for presets that have data
-    if coordinator.data:
-        for preset_index in range(7):
-            if coordinator.data.presets[preset_index].data is not None:
-                numbers.append(PresetDistanceNumber(coordinator, preset_index))
-                numbers.append(PresetRotationNumber(coordinator, preset_index))
+    # Create preset distance/rotation numbers for all 7 presets
+    # Availability will be controlled by the entities themselves
+    for preset_index in range(7):
+        numbers.append(PresetDistanceNumber(coordinator, preset_index))
+        numbers.append(PresetRotationNumber(coordinator, preset_index))
     
     # Add BLE disconnect timeout to configuration section
     numbers.append(BleDisconnectTimeoutNumber(coordinator, config_entry))
@@ -85,6 +84,11 @@ class DistanceNumber(VogelsMotionMountNextBleBaseEntity, NumberEntity):
             return self.coordinator.data.requested_distance
         return self.coordinator.data.distance
 
+    @property
+    def available(self) -> bool:
+        """Only available when connected."""
+        return self.coordinator.data is not None and self.coordinator.data.connected
+
     async def async_set_native_value(self, value: float) -> None:
         """Set the value from the UI."""
         await self.coordinator.request_distance(int(value))
@@ -109,6 +113,11 @@ class RotationNumber(VogelsMotionMountNextBleBaseEntity, NumberEntity):
         if self.coordinator.data.requested_rotation is not None:
             return self.coordinator.data.requested_rotation
         return self.coordinator.data.rotation
+
+    @property
+    def available(self) -> bool:
+        """Only available when connected."""
+        return self.coordinator.data is not None and self.coordinator.data.connected
 
     async def async_set_native_value(self, value: float) -> None:
         """Set the value from the UI."""
@@ -136,8 +145,14 @@ class PresetDistanceNumber(VogelsMotionMountNextBlePresetBaseEntity, NumberEntit
 
     @property
     def available(self) -> bool:
-        """Set availability if preset exists and user has permission."""
-        return super().available and self.coordinator.data is not None and self.coordinator.data.permissions.change_presets
+        """Set availability if connected, preset exists and user has permission."""
+        return (
+            self.coordinator.data is not None 
+            and self.coordinator.data.connected
+            and self.coordinator.data.permissions.change_presets
+            and self._preset is not None 
+            and self._preset.data is not None
+        )
 
     @property
     def native_value(self):
@@ -190,8 +205,14 @@ class PresetRotationNumber(VogelsMotionMountNextBlePresetBaseEntity, NumberEntit
 
     @property
     def available(self) -> bool:
-        """Set availability if preset exists and user has permission."""
-        return super().available and self.coordinator.data is not None and self.coordinator.data.permissions.change_presets
+        """Set availability if connected, preset exists and user has permission."""
+        return (
+            self.coordinator.data is not None 
+            and self.coordinator.data.connected
+            and self.coordinator.data.permissions.change_presets
+            and self._preset is not None 
+            and self._preset.data is not None
+        )
 
     @property
     def native_value(self):
@@ -242,6 +263,11 @@ class BleDisconnectTimeoutNumber(VogelsMotionMountNextBleBaseEntity, NumberEntit
         """Initialize the entity."""
         super().__init__(coordinator)
         self._config_entry = config_entry
+
+    @property
+    def available(self) -> bool:
+        """Always available - this is an app configuration setting, not device-dependent."""
+        return True
 
     @property
     def native_value(self):

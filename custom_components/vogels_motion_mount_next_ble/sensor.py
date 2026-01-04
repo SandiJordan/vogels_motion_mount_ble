@@ -20,11 +20,30 @@ async def async_setup_entry(
 
     async_add_entities(
         [
+            DiscoverySensor(coordinator),
             DistanceSensor(coordinator),
             RotationSensor(coordinator),
             CEBBLSensor(coordinator),
         ]
     )
+
+
+class DiscoverySensor(VogelsMotionMountNextBleBaseEntity, SensorEntity):
+    """Sensor for device discovery status."""
+
+    _attr_unique_id = "discovery_status"
+    _attr_translation_key = _attr_unique_id
+    _attr_icon = "mdi:bluetooth"
+
+    @property
+    def native_value(self):
+        """Return the discovery status as boolean."""
+        return self.coordinator.is_discovered
+
+    @property
+    def available(self) -> bool:
+        """Always available regardless of connection state."""
+        return True
 
 
 class DistanceSensor(VogelsMotionMountNextBleBaseEntity, SensorEntity):

@@ -256,15 +256,24 @@ class VogelsMotionMountBluetoothClient:
         self._stop_keep_alive()
         if self._session_data:
             try:
-                await self._session_data.client.disconnect()
+                client = self._session_data.client
+                if client.is_connected:
+                    try:
+                        await asyncio.wait_for(client.disconnect(), timeout=5.0)
+                    except asyncio.TimeoutError:
+                        _LOGGER.debug("Disconnect timeout for %s, forcing cleanup", self._device.address)
+                    except Exception as err:
+                        _LOGGER.debug("Error during disconnect for %s: %s", self._device.address, err)
             except Exception as err:
                 _LOGGER.debug("Error while disconnecting from %s: %s", self._device.address, err)
             finally:
+                # Always clear session data to free resources
                 self._session_data = None
+                self._notifications_setup = False
                 if self._connection_callback:
                     self._connection_callback(False)
-        # Give BlueZ time to clean up the stale connection
-        await asyncio.sleep(0.5)
+        # Give BlueZ time to clean up the stale connection and free adapter slots
+        await asyncio.sleep(1.0)
 
     async def select_preset(self, preset_index: int):
         """Select the preset at the given index on the Vogels Motion Mount.
@@ -506,23 +515,39 @@ class VogelsMotionMountBluetoothClient:
                 # Use establish_connection with raw BleakClient for reliable connection with retries
                 # but without aggressive service caching that might cause timeouts
                 # IMPORTANT: Limit max_attempts to avoid exhausting the BLE adapter's connection slots
-                client = await establish_connection(
-                    client_class=BleakClient,
-                    device=self._device,
-                    name=self._device.name or "Unknown Device",
-                    disconnected_callback=self._handle_disconnect,
-                    max_attempts=3,  # Limit retries to avoid adapter slot exhaustion
+                # Using 3 attempts max to prevent adapter slot exhaustion
+                client = await asyncio.wait_for(
+                    establish_connection(
+                        client_class=BleakClient,
+                        device=self._device,
+                        name=self._device.name or "Unknown Device",
+                        disconnected_callback=self._handle_disconnect,
+                        max_attempts=3,  # Limit retries to avoid adapter slot exhaustion
+                    ),
+                    timeout=30.0  # 30 second timeout for entire connection process
                 )
                 _LOGGER.info("Successfully established connection to %s", self._device.address)
                 
             except asyncio.TimeoutError:
-                _LOGGER.error("Connection timeout for %s", self._device.address)
+                _LOGGER.error("Connection timeout for %s after 30 seconds", self._device.address)
                 raise ConnectionError(f"Connection timeout for {self._device.address}")
             except (BleakNotFoundError, BleakConnectionError, BleakError) as err:
                 _LOGGER.error("Failed to establish connection to %s: %s", self._device.address, err)
+                # Ensure any partially created client is cleaned up
+                try:
+                    if 'client' in locals() and hasattr(client, 'disconnect'):
+                        await client.disconnect()
+                except Exception as cleanup_err:
+                    _LOGGER.debug("Error cleaning up client after failed connection: %s", cleanup_err)
                 raise ConnectionError(f"Failed to connect to {self._device.address}: {err}") from err
             except Exception as err:
                 _LOGGER.error("Unexpected error connecting to %s: %s", self._device.address, err)
+                # Ensure any partially created client is cleaned up
+                try:
+                    if 'client' in locals() and hasattr(client, 'disconnect'):
+                        await client.disconnect()
+                except Exception as cleanup_err:
+                    _LOGGER.debug("Error cleaning up client after failed connection: %s", cleanup_err)
                 raise ConnectionError(f"Failed to connect to {self._device.address}: {err}") from err
 
             # Check if still connected
@@ -613,8 +638,16 @@ class VogelsMotionMountBluetoothClient:
             _LOGGER.debug("Waiting for service discovery on first read for %s", self._device.address)
             max_wait = 5  # seconds
             start_time = asyncio.get_event_loop().time()
-            while not session_data.client.services and (asyncio.get_event_loop().time() - start_time) < max_wait:
-                await asyncio.sleep(0.1)
+            try:
+                while not session_data.client.services and (asyncio.get_event_loop().time() - start_time) < max_wait:
+                    if not session_data.client.is_connected:
+                        _LOGGER.debug("Connection lost while waiting for service discovery on %s", self._device.address)
+                        raise ConnectionError(f"Connection lost while waiting for service discovery on {self._device.address}")
+                    await asyncio.sleep(0.1)
+                if not session_data.client.services:
+                    _LOGGER.warning("Service discovery timeout for %s after %d seconds", self._device.address, max_wait)
+            except asyncio.CancelledError:
+                raise
         
         # Setup notifications on first read attempt (lazy initialization)
         # This avoids triggering device firmware issues with eager notification setup
