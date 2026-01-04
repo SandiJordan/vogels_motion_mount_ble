@@ -6,14 +6,16 @@ Home Assistant integration allows to control the Vogel's MotionMount NEXT over B
 
 This integration exposes the MotionMount as local devices and entities in Home Assistant so you can:
 
+- Connect/disconnect from MotionMount
 - Move the mount forward/backward and rotate left/right (percentage-based control).
-- Call named presets and add/delete presets.
-- Set a freeze preset used when the TV is turned off and how the TV status is detected.
+- Call presets and enable/configure/disable presets.
+- Monitor sensors (BLE discovered, BLE Connected, Distance and Rotation)
+- Set a freeze preset and automove setting.
 - Start the calibration process.
 
 Use cases:
 
-- Move to a named preset when the TV turns on/off or based on another trigger.
+- Move to a preset when the TV turns on/off or based on another trigger.
 - Automatically rotate or adjust distance based on other sensors or automations.
 - Expose device status for monitoring.
 
@@ -43,13 +45,6 @@ During setup, the integration asks for:
 - **Device name** — a friendly name for the device.
 
 > **Note**: Ensure your Bluetooth adapter is working and within range of the mount.
-
-## Known limitations
-
-The Vogles Motion Mount BLE integration currently has the following limitations:
-
-- The Motion Mount has to be turned on in oreder for this integration to work. I suggest enabling "TV-on/off detection" to automatically turn on the Motion Mount when the TV is turned on. Afterward this integration will be able to connect to the mount.
-- When enabling/disabling presets you have to manually reload the configuration.
 
 ## Removing the integration
 
