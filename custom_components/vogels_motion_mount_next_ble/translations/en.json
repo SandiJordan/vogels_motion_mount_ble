@@ -163,12 +163,6 @@
       "refresh_data": {
         "name": "Refresh Data"
       },
-      "connect": {
-        "name": "Connect"
-      },
-      "disconnect": {
-        "name": "Disconnect"
-      },
       "select_preset_default": {
         "name": "Wall"
       },

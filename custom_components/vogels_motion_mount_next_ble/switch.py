@@ -23,7 +23,10 @@ async def async_setup_entry(
     """Set up the RefreshData and SelectPreset buttons."""
     coordinator: VogelsMotionMountNextBleCoordinator = config_entry.runtime_data
 
-    switches = [PresetSwitch(coordinator, preset_index) for preset_index in range(7)]
+    switches = [
+        ConnectionSwitch(coordinator),
+    ]
+    switches.extend([PresetSwitch(coordinator, preset_index) for preset_index in range(7)])
     
     async_add_entities(switches)
     
@@ -37,6 +40,34 @@ async def async_setup_entry(
                 # Check if it's old format (count underscores = 2, not 3)
                 if entity.unique_id.count("_") == 2:
                     entity_registry.async_remove(entity.entity_id)
+
+
+class ConnectionSwitch(VogelsMotionMountNextBleBaseEntity, SwitchEntity):
+    """Switch to manage BLE connection - ON=connected, OFF=disconnected."""
+
+    _attr_unique_id = "connection"
+    _attr_translation_key = _attr_unique_id
+    _attr_icon = "mdi:bluetooth"
+
+    @property
+    def available(self) -> bool:
+        """Available if device is discovered or if already connected."""
+        return self.coordinator.is_discovered or (
+            self.coordinator.data is not None and self.coordinator.data.connected
+        )
+
+    @property
+    def is_on(self) -> bool:
+        """Return True if device is connected."""
+        return self.coordinator.data is not None and self.coordinator.data.connected
+
+    async def async_turn_on(self, **_: Any) -> None:
+        """Connect to the device."""
+        await self.coordinator.connect()
+
+    async def async_turn_off(self, **_: Any) -> None:
+        """Disconnect from the device."""
+        await self.coordinator.disconnect()
 
 
 class PresetSwitch(VogelsMotionMountNextBlePresetBaseEntity, SwitchEntity):

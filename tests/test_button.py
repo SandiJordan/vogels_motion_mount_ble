@@ -12,7 +12,6 @@ from syrupy.assertion import SnapshotAssertion
 from custom_components.vogels_motion_mount_next_ble.button import (
     AddPresetButton,
     DeletePresetButton,
-    DisconnectButton,
     RefreshDataButton,
     SelectPresetButton,
     SelectPresetDefaultButton,
@@ -70,14 +69,6 @@ async def test_refresh_data_button(mock_coord: VogelsMotionMountNextBleCoordinat
     button = RefreshDataButton(mock_coord)
     await button.async_press()
     mock_coord.refresh_data.assert_awaited_once()
-
-
-@pytest.mark.asyncio
-async def test_disconnect_button(mock_coord: VogelsMotionMountNextBleCoordinator):
-    """Test action for disconnect button."""
-    button = DisconnectButton(mock_coord)
-    await button.async_press()
-    mock_coord.disconnect.assert_awaited_once()
 
 
 @pytest.mark.asyncio

@@ -23,8 +23,6 @@ async def async_setup_entry(
     coordinator: VogelsMotionMountNextBleCoordinator = config_entry.runtime_data
 
     buttons = [
-        ConnectButton(coordinator),
-        DisconnectButton(coordinator),
         StartCalibrationButton(coordinator),
         RefreshDataButton(coordinator),
         SelectPresetDefaultButton(coordinator),
@@ -54,40 +52,6 @@ async def async_setup_entry(
                             entity_registry.async_remove(entity.entity_id)
                 except (ValueError, IndexError):
                     pass
-
-
-class ConnectButton(VogelsMotionMountNextBleBaseEntity, ButtonEntity):
-    """Button to manually connect to the BLE device."""
-
-    _attr_unique_id = "connect"
-    _attr_translation_key = _attr_unique_id
-    _attr_icon = "mdi:bluetooth-connect"
-
-    @property
-    def available(self) -> bool:
-        """Always available to try connecting."""
-        return True
-
-    async def async_press(self):
-        """Execute connect."""
-        await self.coordinator.connect()
-
-
-class DisconnectButton(VogelsMotionMountNextBleBaseEntity, ButtonEntity):
-    """Button to manually disconnect from the BLE device."""
-
-    _attr_unique_id = "disconnect"
-    _attr_translation_key = _attr_unique_id
-    _attr_icon = "mdi:bluetooth-off"
-
-    @property
-    def available(self) -> bool:
-        """Only available when device is connected."""
-        return self.coordinator.data is not None and self.coordinator.data.connected
-
-    async def async_press(self):
-        """Execute disconnect."""
-        await self.coordinator.disconnect()
 
 
 class StartCalibrationButton(VogelsMotionMountNextBleBaseEntity, ButtonEntity):
@@ -139,11 +103,15 @@ class SelectPresetDefaultButton(VogelsMotionMountNextBleBaseEntity, ButtonEntity
 
     @property
     def available(self) -> bool:
-        """Only available when connected."""
-        return self.coordinator.data is not None and self.coordinator.data.connected
+        """Available if device is discovered."""
+        return self.coordinator.is_discovered
 
     async def async_press(self):
-        """Return to home position (wall: distance=0, rotation=0)."""
+        """Return to home position (wall: distance=0, rotation=0). Auto-connect if needed."""
+        # If not connected, connect first
+        if self.coordinator.data is None or not self.coordinator.data.connected:
+            await self.coordinator.connect()
+        # Then move to wall position
         await self.coordinator._client.request_distance(0)
         await self.coordinator._client.request_rotation(0)
 
@@ -169,10 +137,8 @@ class SelectPresetButton(VogelsMotionMountNextBlePresetBaseEntity, ButtonEntity)
 
     def _update_hidden_state(self) -> None:
         """Update hidden state based on whether preset has data."""
-        if self._preset is None:
-            self._attr_hidden = True
-        else:
-            self._attr_hidden = self._preset.data is None
+        # Always show all preset buttons, even if no data
+        self._attr_hidden = False
 
     @property
     def name(self) -> str:
@@ -183,14 +149,8 @@ class SelectPresetButton(VogelsMotionMountNextBlePresetBaseEntity, ButtonEntity)
 
     @property
     def available(self) -> bool:
-        """Only available if connected and preset has data."""
-        if self._preset is None:
-            return False
-        return (
-            self.coordinator.data is not None 
-            and self.coordinator.data.connected 
-            and self._preset.data is not None
-        )
+        """Available if device is discovered."""
+        return self.coordinator.is_discovered
 
     @callback
     def _handle_coordinator_update(self) -> None:
@@ -200,7 +160,11 @@ class SelectPresetButton(VogelsMotionMountNextBlePresetBaseEntity, ButtonEntity)
         super()._handle_coordinator_update()
 
     async def async_press(self):
-        """Select a custom preset by it's index."""
+        """Select a custom preset by it's index. Auto-connect if needed."""
+        # If not connected, connect first
+        if self.coordinator.data is None or not self.coordinator.data.connected:
+            await self.coordinator.connect()
+        # Then select the preset
         await self.coordinator.select_preset(self._preset_index)
 
 

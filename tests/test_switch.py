@@ -14,6 +14,7 @@ from custom_components.vogels_motion_mount_next_ble.coordinator import (
     VogelsMotionMountNextBleCoordinator,
 )
 from custom_components.vogels_motion_mount_next_ble.switch import (
+    ConnectionSwitch,
     MultiPinFeatureChangeDefaultPositionSwitch,
     MultiPinFeatureChangeNameSwitch,
     MultiPinFeatureChangePresetsSwitch,
@@ -91,4 +92,27 @@ async def test_multi_pin_features_switch_toggle_actions(
     await entity.async_turn_off()
     called_features = mock_coord.set_multi_pin_features.await_args[0][0]
     assert getattr(called_features, field) is False
+
+
+@pytest.mark.asyncio
+async def test_connection_switch(mock_coord: VogelsMotionMountNextBleCoordinator):
+    """Test connection switch actions."""
+    switch = ConnectionSwitch(mock_coord)
+    
+    # Initially connected (from mock_coord fixture)
+    assert switch.is_on is True
+    
+    # Turn off → should disconnect
+    await switch.async_turn_off()
+    mock_coord.disconnect.assert_awaited_once()
+    
+    mock_coord.disconnect.reset_mock()
+    
+    # Simulate disconnected state
+    mock_coord.data.connected = False
+    assert switch.is_on is False
+    
+    # Turn on → should connect
+    await switch.async_turn_on()
+    mock_coord.connect.assert_awaited_once()
 
