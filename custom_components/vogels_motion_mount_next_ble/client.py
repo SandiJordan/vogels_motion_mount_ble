@@ -9,14 +9,14 @@ from typing import Optional
 import logging
 import struct
 
-from bleak import BleakClient
-from bleak.backends.characteristic import BleakGATTCharacteristic
-from bleak.backends.device import BLEDevice
-from bleak.exc import BleakCharacteristicNotFoundError, BleakDBusError, BleakError
-from bleak_retry_connector import establish_connection, BleakNotFoundError, BleakConnectionError
+from bleak import BleakClient  # type: ignore[import-untyped]
+from bleak.backends.characteristic import BleakGATTCharacteristic  # type: ignore[import-untyped]
+from bleak.backends.device import BLEDevice  # type: ignore[import-untyped]
+from bleak.exc import BleakCharacteristicNotFoundError, BleakDBusError, BleakError  # type: ignore[import-untyped]
+from bleak_retry_connector import establish_connection, BleakNotFoundError, BleakConnectionError  # type: ignore[import-untyped]
 
-from homeassistant.core import HomeAssistant
-from homeassistant.components import bluetooth
+from homeassistant.core import HomeAssistant  # type: ignore[import-untyped]
+from homeassistant.components import bluetooth  # type: ignore[import-untyped]
 
 from .const import (
     CHAR_AUTOMOVE_UUID,

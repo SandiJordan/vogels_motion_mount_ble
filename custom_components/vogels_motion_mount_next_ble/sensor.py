@@ -1,9 +1,9 @@
 """Sensor entities to define properties for Vogels Motion Mount BLE entities."""
 
-from homeassistant.components.sensor import SensorEntity
-from homeassistant.const import EntityCategory
-from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.components.sensor import SensorEntity  # type: ignore[import-untyped]
+from homeassistant.const import EntityCategory  # type: ignore[import-untyped]
+from homeassistant.core import HomeAssistant  # type: ignore[import-untyped]
+from homeassistant.helpers.entity_platform import AddEntitiesCallback  # type: ignore[import-untyped]
 
 from . import VogelsMotionMountNextBleConfigEntry
 from .base import VogelsMotionMountNextBleBaseEntity

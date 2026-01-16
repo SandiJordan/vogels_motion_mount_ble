@@ -4,11 +4,11 @@ import logging
 from dataclasses import replace
 from typing import Any
 
-from homeassistant.components.switch import SwitchEntity
-from homeassistant.const import EntityCategory
-from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.entity_registry import async_get
+from homeassistant.components.switch import SwitchEntity  # type: ignore[import-untyped]
+from homeassistant.const import EntityCategory  # type: ignore[import-untyped]
+from homeassistant.core import HomeAssistant, callback  # type: ignore[import-untyped]
+from homeassistant.helpers.entity_platform import AddEntitiesCallback  # type: ignore[import-untyped]
+from homeassistant.helpers.entity_registry import async_get  # type: ignore[import-untyped]
 
 from . import VogelsMotionMountNextBleConfigEntry
 from .base import VogelsMotionMountNextBleBaseEntity, VogelsMotionMountNextBlePresetBaseEntity

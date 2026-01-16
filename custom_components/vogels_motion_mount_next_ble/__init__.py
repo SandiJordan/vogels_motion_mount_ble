@@ -5,24 +5,24 @@ from __future__ import annotations
 from datetime import timedelta
 import logging
 
-from packaging import version
+from packaging import version # type: ignore[import-untyped]
 
-from homeassistant.components import bluetooth
-from homeassistant.components.bluetooth import (
+from homeassistant.components import bluetooth  # type: ignore[import-untyped]
+from homeassistant.components.bluetooth import (  # type: ignore[import-untyped]
     BluetoothChange,
     BluetoothScanningMode,
     BluetoothServiceInfoBleak,
 )
-from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import Platform, __version__ as ha_version
-from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import (
+from homeassistant.config_entries import ConfigEntry # type: ignore[import-untyped]
+from homeassistant.const import Platform, __version__ as ha_version  # type: ignore[import-untyped]
+from homeassistant.core import HomeAssistant  # type: ignore[import-untyped]
+from homeassistant.exceptions import (  # type: ignore[import-untyped]
     ConfigEntryAuthFailed,
     ConfigEntryNotReady,
     HomeAssistantError,
     IntegrationError,
 )
-from homeassistant.util import dt as dt_util
+from homeassistant.util import dt as dt_util  # type: ignore[import-untyped]
 
 from .const import BLE_CALLBACK, CONF_MAC, DOMAIN, MIN_HA_VERSION
 from .coordinator import VogelsMotionMountNextBleCoordinator

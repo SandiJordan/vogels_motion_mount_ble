@@ -2,9 +2,9 @@
 
 from propcache.api import cached_property
 
-from homeassistant.core import callback
-from homeassistant.helpers.device_registry import DeviceInfo
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from homeassistant.core import callback  # type: ignore[import-untyped]
+from homeassistant.helpers.device_registry import DeviceInfo  # type: ignore[import-untyped]
+from homeassistant.helpers.update_coordinator import CoordinatorEntity  # type: ignore[import-untyped]
 
 from .const import DOMAIN
 from .coordinator import VogelsMotionMountNextBleCoordinator

@@ -1,11 +1,11 @@
 """Binary sensor entities to define properties for Vogels Motion Mount BLE entities."""
 
-from homeassistant.components.binary_sensor import (
+from homeassistant.components.binary_sensor import (  # type: ignore[import-untyped]
     BinarySensorDeviceClass,
     BinarySensorEntity,
 )
-from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.core import HomeAssistant  # type: ignore[import-untyped]
+from homeassistant.helpers.entity_platform import AddEntitiesCallback  # type: ignore[import-untyped]
 
 from . import VogelsMotionMountNextBleConfigEntry
 from .base import VogelsMotionMountNextBleBaseEntity

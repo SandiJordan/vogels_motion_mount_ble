@@ -9,14 +9,14 @@ import logging
 import re
 from typing import Any
 
-from bleak_retry_connector import BleakClientWithServiceCache, establish_connection
+from bleak_retry_connector import BleakClientWithServiceCache, establish_connection  # type: ignore[import-untyped]
 import voluptuous as vol
 from voluptuous.schema_builder import UNDEFINED
 
-from homeassistant.components import bluetooth
-from homeassistant.components.bluetooth import BluetoothServiceInfoBleak
+from homeassistant.components import bluetooth  # type: ignore[import-untyped]
+from homeassistant.components.bluetooth import BluetoothServiceInfoBleak  # type: ignore[import-untyped]
 from homeassistant.config_entries import ConfigFlow, ConfigFlowResult, OptionsFlow
-from homeassistant.helpers.selector import (
+from homeassistant.helpers.selector import (  # type: ignore[import-untyped]
     NumberSelector,
     NumberSelectorConfig,
     NumberSelectorMode,
@@ -24,7 +24,7 @@ from homeassistant.helpers.selector import (
     TextSelectorConfig,
     TextSelectorType,
 )
-from homeassistant.util import dt as dt_util
+from homeassistant.util import dt as dt_util  # type: ignore[import-untyped]
 
 from .const import CONF_BLE_DISCONNECT_TIMEOUT, CONF_BLE_DISCOVERY_TIMEOUT, CONF_ERROR, CONF_MAC, CONF_NAME, DEFAULT_BLE_DISCONNECT_TIMEOUT, DEFAULT_BLE_DISCOVERY_TIMEOUT, DOMAIN
 

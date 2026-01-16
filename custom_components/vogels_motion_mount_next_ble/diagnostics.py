@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from homeassistant.components.diagnostics import async_redact_data
-from homeassistant.core import HomeAssistant
+from homeassistant.components.diagnostics import async_redact_data  # type: ignore[import-untyped]
+from homeassistant.core import HomeAssistant  # type: ignore[import-untyped]
 
 from . import VogelsMotionMountNextBleConfigEntry
 from .const import CONF_MAC, CONF_PIN

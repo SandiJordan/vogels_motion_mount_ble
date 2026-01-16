@@ -2,10 +2,10 @@
 
 import logging
 
-from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant, ServiceCall
-from homeassistant.exceptions import ServiceValidationError
-from homeassistant.helpers import device_registry as dr
+from homeassistant.config_entries import ConfigEntry  # type: ignore[import-untyped]
+from homeassistant.core import HomeAssistant, ServiceCall  # type: ignore[import-untyped]
+from homeassistant.exceptions import ServiceValidationError  # type: ignore[import-untyped]
+from homeassistant.helpers import device_registry as dr  # type: ignore[import-untyped]
 
 from .client import VogelsMotionMountClientAuthenticationError
 from .const import DOMAIN
