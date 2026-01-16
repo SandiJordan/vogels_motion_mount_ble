@@ -15,7 +15,7 @@ from voluptuous.schema_builder import UNDEFINED
 
 from homeassistant.components import bluetooth
 from homeassistant.components.bluetooth import BluetoothServiceInfoBleak
-from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
+from homeassistant.config_entries import ConfigFlow, ConfigFlowResult, OptionsFlow
 from homeassistant.helpers.selector import (
     NumberSelector,
     NumberSelectorConfig,
@@ -26,7 +26,7 @@ from homeassistant.helpers.selector import (
 )
 from homeassistant.util import dt as dt_util
 
-from .const import CONF_BLE_DISCONNECT_TIMEOUT, CONF_ERROR, CONF_MAC, CONF_NAME, DEFAULT_BLE_DISCONNECT_TIMEOUT, DOMAIN
+from .const import CONF_BLE_DISCONNECT_TIMEOUT, CONF_BLE_DISCOVERY_TIMEOUT, CONF_ERROR, CONF_MAC, CONF_NAME, DEFAULT_BLE_DISCONNECT_TIMEOUT, DEFAULT_BLE_DISCOVERY_TIMEOUT, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -39,10 +39,65 @@ class ValidationResult:
     description_placeholders: dict[str, Any] | None = None
 
 
+class VogelsMotionMountOptionsFlow(OptionsFlow):
+    """Options flow for Vogels Motion Mount BLE."""
+
+    async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        """Handle options."""
+        config_entry = self.config_entry
+        
+        if user_input is not None:
+            return self.async_create_entry(title="", data=user_input)
+        
+        return self.async_show_form(
+            step_id="init",
+            data_schema=vol.Schema(
+                {
+                    vol.Optional(
+                        CONF_BLE_DISCONNECT_TIMEOUT,
+                        default=config_entry.options.get(
+                            CONF_BLE_DISCONNECT_TIMEOUT,
+                            config_entry.data.get(
+                                CONF_BLE_DISCONNECT_TIMEOUT,
+                                DEFAULT_BLE_DISCONNECT_TIMEOUT,
+                            ),
+                        ),
+                    ): NumberSelector(
+                        NumberSelectorConfig(
+                            min=1,
+                            max=60,
+                            unit_of_measurement="minutes",
+                            mode=NumberSelectorMode.SLIDER,
+                        )
+                    ),
+                    vol.Optional(
+                        CONF_BLE_DISCOVERY_TIMEOUT,
+                        default=config_entry.options.get(
+                            CONF_BLE_DISCOVERY_TIMEOUT,
+                            config_entry.data.get(
+                                CONF_BLE_DISCOVERY_TIMEOUT,
+                                DEFAULT_BLE_DISCOVERY_TIMEOUT,
+                            ),
+                        ),
+                    ): NumberSelector(
+                        NumberSelectorConfig(
+                            min=10,
+                            max=300,
+                            unit_of_measurement="seconds",
+                            mode=NumberSelectorMode.SLIDER,
+                        )
+                    ),
+                }
+            ),
+        )
+
+
 class VogelsMotionMountConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle the config flow for Vogel's MotionMount Integration."""
 
     VERSION = 1
+    
+    OPTIONS_FLOW = VogelsMotionMountOptionsFlow
 
     _discovery_info: BluetoothServiceInfoBleak | None = None
 
@@ -245,3 +300,55 @@ class VogelsMotionMountConfigFlow(ConfigFlow, domain=DOMAIN):
             description_placeholders=result.description_placeholders,
         )
 
+
+class VogelsMotionMountOptionsFlow(OptionsFlow):
+    """Options flow for Vogels Motion Mount BLE."""
+
+    async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        """Handle options."""
+        config_entry = self.config_entry
+        
+        if user_input is not None:
+            return self.async_create_entry(title="", data=user_input)
+        
+        return self.async_show_form(
+            step_id="init",
+            data_schema=vol.Schema(
+                {
+                    vol.Optional(
+                        CONF_BLE_DISCONNECT_TIMEOUT,
+                        default=config_entry.options.get(
+                            CONF_BLE_DISCONNECT_TIMEOUT,
+                            config_entry.data.get(
+                                CONF_BLE_DISCONNECT_TIMEOUT,
+                                DEFAULT_BLE_DISCONNECT_TIMEOUT,
+                            ),
+                        ),
+                    ): NumberSelector(
+                        NumberSelectorConfig(
+                            min=1,
+                            max=60,
+                            unit_of_measurement="minutes",
+                            mode=NumberSelectorMode.SLIDER,
+                        )
+                    ),
+                    vol.Optional(
+                        CONF_BLE_DISCOVERY_TIMEOUT,
+                        default=config_entry.options.get(
+                            CONF_BLE_DISCOVERY_TIMEOUT,
+                            config_entry.data.get(
+                                CONF_BLE_DISCOVERY_TIMEOUT,
+                                DEFAULT_BLE_DISCOVERY_TIMEOUT,
+                            ),
+                        ),
+                    ): NumberSelector(
+                        NumberSelectorConfig(
+                            min=10,
+                            max=300,
+                            unit_of_measurement="seconds",
+                            mode=NumberSelectorMode.SLIDER,
+                        )
+                    ),
+                }
+            ),
+        )

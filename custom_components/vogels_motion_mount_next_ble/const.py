@@ -8,11 +8,15 @@ CONF_MAC = "conf_mac"
 CONF_NAME = "conf_name"
 CONF_PIN = "conf_pin"
 CONF_BLE_DISCONNECT_TIMEOUT = "ble_disconnect_timeout"
+CONF_BLE_DISCOVERY_TIMEOUT = "ble_discovery_timeout"
 CONF_ERROR = "base"
 BLE_CALLBACK = "unregister_ble_callback"
 
 # Default BLE disconnect timeout in minutes
 DEFAULT_BLE_DISCONNECT_TIMEOUT = 1
+
+# Default BLE discovery timeout in seconds (how long to consider device discovered after last advertisement)
+DEFAULT_BLE_DISCOVERY_TIMEOUT = 30
 
 CHAR_WIDTH_UUID = "c005fa2b-0651-4800-b000-000000000000"  # Not supported on this device
 CHAR_DISTANCE_UUID = "c005fa00-0651-4800-b000-000000000000"

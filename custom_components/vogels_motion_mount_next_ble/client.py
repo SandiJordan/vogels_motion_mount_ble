@@ -15,6 +15,9 @@ from bleak.backends.device import BLEDevice
 from bleak.exc import BleakCharacteristicNotFoundError, BleakDBusError, BleakError
 from bleak_retry_connector import establish_connection, BleakNotFoundError, BleakConnectionError
 
+from homeassistant.core import HomeAssistant
+from homeassistant.components import bluetooth
+
 from .const import (
     #CHAR_AUTHENTICATE_UUID,
     CHAR_AUTOMOVE_UUID,
@@ -73,8 +76,9 @@ class VogelsMotionMountBluetoothClient:
 
     def __init__(
         self,
+        hass: HomeAssistant,
+        address: str,
         pin: int | None = None,
-        device: BLEDevice = None,
         permission_callback: Callable[[Optional[VogelsMotionMountPermissions]], None] = None,
         connection_callback: Callable[[bool], None] = None,
         distance_callback: Callable[[int], None] = None,
@@ -83,18 +87,18 @@ class VogelsMotionMountBluetoothClient:
         """Initialize the Vogels Motion Mount Bluetooth client.
 
         Args:
+            hass: Home Assistant instance for bluetooth device lookup.
+            address: MAC address of the BLE device (e.g., "AA:BB:CC:DD:EE:FF").
             pin: The PIN code for authentication, or None.
-            device: The BLEDevice instance representing the mount.
             permission_callback: Callback for permission updates.
             connection_callback: Callback for connection state changes.
             distance_callback: Callback for distance updates.
             rotation_callback: Callback for rotation updates.
         """
         # keep the pin around for compatibility/future use
+        self._hass = hass
+        self._address = address
         self._pin = pin
-        self._device = device
-        if self._device is None:
-            raise ValueError("device must be provided to VogelsMotionMountBluetoothClient")
         self._connection_callback = connection_callback
         self._permission_callback = permission_callback
         self._distance_callback = distance_callback
@@ -114,13 +118,18 @@ class VogelsMotionMountBluetoothClient:
         session = await self._connect()
         return session.permissions or _make_full_permissions()
 
-    async def read_automove(self) -> VogelsMotionMountAutoMoveType:
+    async def read_automove(self) -> VogelsMotionMountAutoMoveType | None:
         """Read and return the current automove type for the Vogels Motion Mount."""
         try:
             data = await self._read(CHAR_AUTOMOVE_UUID)
             if not data:
                 raise RuntimeError("Empty automove characteristic")
-            return VogelsMotionMountAutoMoveType(int.from_bytes(data, "big"))
+            value = int.from_bytes(data, "big")
+            try:
+                return VogelsMotionMountAutoMoveType(value)
+            except ValueError:
+                _LOGGER.warning("Unknown automove value: %d (0x%02X), ignoring", value, value)
+                return None
         except Exception as err:
             _LOGGER.exception("Failed to read automove: %s", err)
             raise RuntimeError(f"Failed to read automove: {err}") from err
@@ -252,7 +261,7 @@ class VogelsMotionMountBluetoothClient:
 
     async def disconnect(self):
         """Disconnect from the Vogels Motion Mount BLE device if connected."""
-        _LOGGER.debug("Disconnecting from %s", self._device.address)
+        _LOGGER.debug("Disconnecting from %s", self._address)
         self._stop_keep_alive()
         if self._session_data:
             try:
@@ -261,11 +270,11 @@ class VogelsMotionMountBluetoothClient:
                     try:
                         await asyncio.wait_for(client.disconnect(), timeout=5.0)
                     except asyncio.TimeoutError:
-                        _LOGGER.debug("Disconnect timeout for %s, forcing cleanup", self._device.address)
+                        _LOGGER.debug("Disconnect timeout for %s, forcing cleanup", self._address)
                     except Exception as err:
-                        _LOGGER.debug("Error during disconnect for %s: %s", self._device.address, err)
+                        _LOGGER.debug("Error during disconnect for %s: %s", self._address, err)
             except Exception as err:
-                _LOGGER.debug("Error while disconnecting from %s: %s", self._device.address, err)
+                _LOGGER.debug("Error while disconnecting from %s: %s", self._address, err)
             finally:
                 # Always clear session data to free resources
                 self._session_data = None
@@ -497,21 +506,35 @@ class VogelsMotionMountBluetoothClient:
     async def _connect(self) -> _VogelsMotionMountSessionData:
         """Connect to the device if not already connected. Read auth status and store it in session data."""
         async with self._connect_lock:
-            _LOGGER.debug("Connecting to device %s", self._device.address)
+            _LOGGER.debug("Connecting to device %s", self._address)
             if self._session_data and self._session_data.client.is_connected:
-                _LOGGER.debug("Already connected to %s", self._device.address)
+                _LOGGER.debug("Already connected to %s", self._address)
                 return self._session_data
             
             # Clear stale session if connection was dropped
             if self._session_data:
-                _LOGGER.debug("Previous connection is stale, clearing session for %s", self._device.address)
+                _LOGGER.debug("Previous connection is stale, clearing session for %s", self._address)
                 self._session_data = None
             
             # Reset notifications setup flag for new connection
             self._notifications_setup = False
 
+            # Get a fresh device object from Home Assistant's bluetooth integration
+            # This ensures we get the most recent device object from BLE scans
+            device = bluetooth.async_ble_device_from_address(
+                hass=self._hass,
+                address=self._address,
+                connectable=True,
+            )
+            if device is None:
+                _LOGGER.error("Device %s not found in bluetooth cache", self._address)
+                # Notify of connection failure
+                if self._connection_callback:
+                    self._connection_callback(False)
+                raise ConnectionError(f"Device {self._address} not found in bluetooth cache - not recently discovered")
+
             try:
-                _LOGGER.debug("Establishing connection to %s using retry connector", self._device.address)
+                _LOGGER.debug("Establishing connection to %s using retry connector", self._address)
                 # Use establish_connection with raw BleakClient for reliable connection with retries
                 # but without aggressive service caching that might cause timeouts
                 # IMPORTANT: Limit max_attempts to avoid exhausting the BLE adapter's connection slots
@@ -519,41 +542,53 @@ class VogelsMotionMountBluetoothClient:
                 client = await asyncio.wait_for(
                     establish_connection(
                         client_class=BleakClient,
-                        device=self._device,
-                        name=self._device.name or "Unknown Device",
+                        device=device,
+                        name=device.name or "Unknown Device",
                         disconnected_callback=self._handle_disconnect,
                         max_attempts=3,  # Limit retries to avoid adapter slot exhaustion
                     ),
                     timeout=30.0  # 30 second timeout for entire connection process
                 )
-                _LOGGER.info("Successfully established connection to %s", self._device.address)
+                _LOGGER.info("Successfully established connection to %s", self._address)
                 
             except asyncio.TimeoutError:
-                _LOGGER.error("Connection timeout for %s after 30 seconds", self._device.address)
-                raise ConnectionError(f"Connection timeout for {self._device.address}")
+                _LOGGER.error("Connection timeout for %s after 30 seconds", self._address)
+                # Notify of connection failure
+                if self._connection_callback:
+                    self._connection_callback(False)
+                raise ConnectionError(f"Connection timeout for {self._address}")
             except (BleakNotFoundError, BleakConnectionError, BleakError) as err:
-                _LOGGER.error("Failed to establish connection to %s: %s", self._device.address, err)
+                _LOGGER.error("Failed to establish connection to %s: %s", self._address, err)
                 # Ensure any partially created client is cleaned up
                 try:
                     if 'client' in locals() and hasattr(client, 'disconnect'):
                         await client.disconnect()
                 except Exception as cleanup_err:
                     _LOGGER.debug("Error cleaning up client after failed connection: %s", cleanup_err)
-                raise ConnectionError(f"Failed to connect to {self._device.address}: {err}") from err
+                # Notify of connection failure
+                if self._connection_callback:
+                    self._connection_callback(False)
+                raise ConnectionError(f"Failed to connect to {self._address}: {err}") from err
             except Exception as err:
-                _LOGGER.error("Unexpected error connecting to %s: %s", self._device.address, err)
+                _LOGGER.error("Unexpected error connecting to %s: %s", self._address, err)
                 # Ensure any partially created client is cleaned up
                 try:
                     if 'client' in locals() and hasattr(client, 'disconnect'):
                         await client.disconnect()
                 except Exception as cleanup_err:
                     _LOGGER.debug("Error cleaning up client after failed connection: %s", cleanup_err)
-                raise ConnectionError(f"Failed to connect to {self._device.address}: {err}") from err
+                # Notify of connection failure
+                if self._connection_callback:
+                    self._connection_callback(False)
+                raise ConnectionError(f"Failed to connect to {self._address}: {err}") from err
 
             # Check if still connected
             if not client.is_connected:
-                _LOGGER.error("Connection lost immediately after connect for %s", self._device.address)
-                raise ConnectionError(f"Connection lost immediately after connect for {self._device.address}")
+                _LOGGER.error("Connection lost immediately after connect for %s", self._address)
+                # Notify of connection failure
+                if self._connection_callback:
+                    self._connection_callback(False)
+                raise ConnectionError(f"Connection lost immediately after connect for {self._address}")
 
             # Acquire MTU to avoid bleak warning
             try:
@@ -562,7 +597,7 @@ class VogelsMotionMountBluetoothClient:
             except Exception as err:
                 _LOGGER.debug("Could not acquire MTU: %s", err)
 
-            _LOGGER.info("Connection established for %s", self._device.address)
+            _LOGGER.info("Connection established for %s", self._address)
 
             # Device doesn't support PIN/auth — give full permissive permissions so writes work
             self._session_data = _VogelsMotionMountSessionData(
@@ -578,7 +613,7 @@ class VogelsMotionMountBluetoothClient:
             if self._connection_callback:
                 self._connection_callback(self._session_data.client.is_connected)
             
-            _LOGGER.debug("Connection setup complete for %s", self._device.address)
+            _LOGGER.debug("Connection setup complete for %s", self._address)
             return self._session_data
 
     def _handle_disconnect(self, _: BleakClient):
@@ -593,14 +628,14 @@ class VogelsMotionMountBluetoothClient:
         """Start a periodic keep-alive to prevent device timeout."""
         if self._keep_alive_handle is not None:
             return  # Already running
-        _LOGGER.debug("Starting keep-alive for %s", self._device.address)
+        _LOGGER.debug("Starting keep-alive for %s", self._address)
         # Schedule keep-alive to run every 5 seconds
         self._keep_alive_handle = asyncio.create_task(self._keep_alive_loop())
 
     def _stop_keep_alive(self):
         """Stop the keep-alive loop."""
         if self._keep_alive_handle is not None:
-            _LOGGER.debug("Stopping keep-alive for %s", self._device.address)
+            _LOGGER.debug("Stopping keep-alive for %s", self._address)
             self._keep_alive_handle.cancel()
             self._keep_alive_handle = None
 
@@ -617,16 +652,16 @@ class VogelsMotionMountBluetoothClient:
                         self._session_data.client.read_gatt_char(CHAR_DISTANCE_UUID),
                         timeout=2.0
                     )
-                    _LOGGER.debug("Keep-alive read successful for %s", self._device.address)
+                    _LOGGER.debug("Keep-alive read successful for %s", self._address)
                 except asyncio.TimeoutError:
-                    _LOGGER.debug("Keep-alive read timed out for %s", self._device.address)
+                    _LOGGER.debug("Keep-alive read timed out for %s", self._address)
                 except Exception as err:
                     # Connection might be dropping, but don't fail - let normal error handling catch it
-                    _LOGGER.debug("Keep-alive read error for %s: %s", self._device.address, err)
+                    _LOGGER.debug("Keep-alive read error for %s: %s", self._address, err)
         except asyncio.CancelledError:
-            _LOGGER.debug("Keep-alive loop cancelled for %s", self._device.address)
+            _LOGGER.debug("Keep-alive loop cancelled for %s", self._address)
         except Exception as err:
-            _LOGGER.debug("Keep-alive loop error for %s: %s", self._device.address, err)
+            _LOGGER.debug("Keep-alive loop error for %s: %s", self._address, err)
 
     async def _read(self, char_uuid: str) -> bytes:
         """Read data by first connecting and then returning the read data."""
@@ -635,17 +670,17 @@ class VogelsMotionMountBluetoothClient:
         # Wait briefly for services if not yet discovered
         # But don't block indefinitely - the device might disconnect if we poke at it too much
         if not session_data.client.services:
-            _LOGGER.debug("Waiting for service discovery on first read for %s", self._device.address)
+            _LOGGER.debug("Waiting for service discovery on first read for %s", self._address)
             max_wait = 5  # seconds
             start_time = asyncio.get_event_loop().time()
             try:
                 while not session_data.client.services and (asyncio.get_event_loop().time() - start_time) < max_wait:
                     if not session_data.client.is_connected:
-                        _LOGGER.debug("Connection lost while waiting for service discovery on %s", self._device.address)
-                        raise ConnectionError(f"Connection lost while waiting for service discovery on {self._device.address}")
+                        _LOGGER.debug("Connection lost while waiting for service discovery on %s", self._address)
+                        raise ConnectionError(f"Connection lost while waiting for service discovery on {self._address}")
                     await asyncio.sleep(0.1)
                 if not session_data.client.services:
-                    _LOGGER.warning("Service discovery timeout for %s after %d seconds", self._device.address, max_wait)
+                    _LOGGER.warning("Service discovery timeout for %s after %d seconds", self._address, max_wait)
             except asyncio.CancelledError:
                 raise
         

@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 from bleak import BleakClient
 from bleak.backends.device import BLEDevice
+from homeassistant.core import HomeAssistant
 import pytest
 
 from custom_components.vogels_motion_mount_next_ble.client import (
@@ -66,11 +67,12 @@ def callbacks():
 
 
 @pytest.fixture
-def client(mock_dev: BLEDevice, callbacks: dict) -> VogelsMotionMountBluetoothClient:
+def client(hass: HomeAssistant, callbacks: dict) -> VogelsMotionMountBluetoothClient:
     """Return a Bluetooth client with mocked callbacks."""
     return VogelsMotionMountBluetoothClient(
+        hass=hass,
+        address=MOCKED_CONF_MAC,
         pin=MOCKED_CONF_PIN,
-        device=mock_dev,
         permission_callback=callbacks["permission"],
         connection_callback=callbacks["connection"],
         distance_callback=callbacks["distance"],
@@ -537,8 +539,9 @@ async def test_connect_is_singleton():
         ),
     ):
         client = VogelsMotionMountBluetoothClient(
+            hass=AsyncMock(),
+            address=MOCKED_CONF_MAC,
             pin=None,
-            device=AsyncMock(),
             permission_callback=lambda x: None,
             connection_callback=lambda x: None,
             distance_callback=lambda x: None,
@@ -559,12 +562,13 @@ async def test_connect_is_singleton():
 
 @pytest.mark.asyncio
 async def test_connect_returns_existing_session_data(
-    mock_dev: BLEDevice, mock_session: _VogelsMotionMountSessionData
+    hass: HomeAssistant, mock_session: _VogelsMotionMountSessionData
 ):
     """_connect returns existing session data if already connected."""
     client = VogelsMotionMountBluetoothClient(
+        hass=hass,
+        address=MOCKED_CONF_MAC,
         pin=1234,
-        device=mock_dev,
         permission_callback=lambda p: None,
         connection_callback=lambda c: None,
         distance_callback=lambda d: None,
@@ -576,7 +580,7 @@ async def test_connect_returns_existing_session_data(
 
 
 @pytest.mark.asyncio
-async def test_connect_sets_session_and_triggers_callbacks(mock_dev):
+async def test_connect_sets_session_and_triggers_callbacks(hass: HomeAssistant, mock_dev):
     """Ensure _connect sets session data, calls callbacks, and returns session."""
     mock_client = AsyncMock(spec=BleakClient)
     mock_perms = VogelsMotionMountPermissions(
@@ -600,12 +604,17 @@ async def test_connect_sets_session_and_triggers_callbacks(mock_dev):
             "custom_components.vogels_motion_mount_next_ble.client.get_permissions",
             return_value=mock_perms,
         ),
+        patch(
+            "custom_components.vogels_motion_mount_next_ble.client.bluetooth.async_ble_device_from_address",
+            return_value=mock_dev,
+        ),
     ):
         connection_cb = MagicMock()
         permission_cb = MagicMock()
         client = VogelsMotionMountBluetoothClient(
+            hass=hass,
+            address=MOCKED_CONF_MAC,
             pin=1234,
-            device=mock_dev,
             permission_callback=permission_cb,
             connection_callback=connection_cb,
             distance_callback=lambda _: None,
@@ -617,12 +626,13 @@ async def test_connect_sets_session_and_triggers_callbacks(mock_dev):
         connection_cb.assert_called_once_with(mock_client.is_connected)
 
 
-def test_handle_disconnect_resets_session_and_triggers_callback(mock_dev):
+def test_handle_disconnect_resets_session_and_triggers_callback(hass):
     """Ensure _handle_disconnect clears session and calls connection callback."""
     connection_cb = MagicMock()
     client = VogelsMotionMountBluetoothClient(
+        hass=hass,
+        address=MOCKED_CONF_MAC,
         pin=None,
-        device=mock_dev,
         permission_callback=lambda _: None,
         connection_callback=connection_cb,
         distance_callback=lambda _: None,
@@ -640,12 +650,13 @@ def test_handle_disconnect_resets_session_and_triggers_callback(mock_dev):
 
 
 @pytest.mark.asyncio
-async def test_setup_notifications_registers_distance_and_rotation(mock_dev):
+async def test_setup_notifications_registers_distance_and_rotation(hass):
     """Ensure _setup_notifications registers start_notify for distance and rotation."""
     mock_client = AsyncMock(spec=BleakClient)
     client = VogelsMotionMountBluetoothClient(
+        hass=hass,
+        address=MOCKED_CONF_MAC,
         pin=None,
-        device=mock_dev,
         permission_callback=lambda _: None,
         connection_callback=lambda _: None,
         distance_callback=lambda _: None,

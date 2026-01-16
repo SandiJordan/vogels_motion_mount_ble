@@ -44,7 +44,7 @@ class AutomoveSelect(VogelsMotionMountNextBleBaseEntity, SelectEntity):
     @property
     def current_option(self) -> str | None:
         """Return the current active automove option."""
-        if self.coordinator.data is None:
+        if self.coordinator.data is None or self.coordinator.data.automove is None:
             return None
         automove = self.coordinator.data.automove.value
         # Off → always "0"
@@ -55,6 +55,8 @@ class AutomoveSelect(VogelsMotionMountNextBleBaseEntity, SelectEntity):
 
     async def async_select_option(self, option: str) -> None:
         """Select an option."""
+        if self.coordinator.data is None or self.coordinator.data.automove is None:
+            return
         current_value = self.coordinator.data.automove.value
 
         if option == "0":

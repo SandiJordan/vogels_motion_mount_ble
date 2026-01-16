@@ -75,11 +75,34 @@ async def async_setup_entry(
     device = bluetooth.async_ble_device_from_address(
         hass=hass,
         address=config_entry.data[CONF_MAC],
-        connectable=True,
+        connectable=False,  # Accept both connectable and non-connectable devices
     )
 
     if device is None:
-        _LOGGER.debug("async_setup_entry device not found")
+        _LOGGER.warning(
+            "Device %s not found in BLE cache. Triggering BLE discovery...",
+            config_entry.data[CONF_MAC]
+        )
+        
+        # Trigger an active scan to discover the device
+        # First, request active scanning for this address
+        def _ble_discovery_callback(
+            info: BluetoothServiceInfoBleak, change: BluetoothChange
+        ):
+            pass  # Just need to trigger active scanning
+        
+        _LOGGER.info("Requesting active BLE scan for device %s", config_entry.data[CONF_MAC])
+        unregister_discovery = bluetooth.async_register_callback(
+            hass,
+            _ble_discovery_callback,
+            {"address": config_entry.data[CONF_MAC]},
+            BluetoothScanningMode.ACTIVE,
+        )
+        # Keep this callback registered to maintain active scanning
+        entry_data["DISCOVERY_CALLBACK"] = unregister_discovery
+        
+        # Also trigger rediscovery
+        bluetooth.async_rediscover_address(hass, config_entry.data[CONF_MAC])
 
         if entry_data.get(BLE_CALLBACK) is None:
             # Register a callback to retry setup when the device appears
@@ -87,22 +110,20 @@ async def async_setup_entry(
                 info: BluetoothServiceInfoBleak, change: BluetoothChange
             ):
                 if info.address == config_entry.data[CONF_MAC]:
-                    _LOGGER.debug("%s is discovered again", info.address)
+                    _LOGGER.info("%s is discovered, retrying setup", info.address)
                     # Schedule a reload of the config entry immediately
                     hass.async_create_task(
                         hass.config_entries.async_reload(config_entry.entry_id)
                     )
 
-            _LOGGER.debug("async_setup_entry async_register_callback")
+            _LOGGER.info("Registering BLE discovery callback for device %s with active scanning", config_entry.data[CONF_MAC])
             unregister_ble_callback = bluetooth.async_register_callback(
                 hass,
                 _available_callback,
-                {"address": config_entry.data[CONF_MAC], "connectable": True},
+                {"address": config_entry.data[CONF_MAC]},  # No connectable filter - accept any advertisement
                 BluetoothScanningMode.ACTIVE,
             )
-            entry_data[BLE_CALLBACK] = (
-                unregister_ble_callback
-            )
+            entry_data[BLE_CALLBACK] = unregister_ble_callback
         raise ConfigEntryNotReady(
             translation_key="error_device_not_found",
         )
@@ -169,6 +190,12 @@ async def async_unload_entry(
         if unregister_ble_callback:
             _LOGGER.debug("unregister_ble_callback")
             unregister_ble_callback()
+        
+        # Also clean up discovery callback if it was registered
+        unregister_discovery = entry_data.get("DISCOVERY_CALLBACK")
+        if unregister_discovery:
+            _LOGGER.debug("unregister_discovery_callback")
+            unregister_discovery()
 
     # Only unload platforms if the entry was actually loaded
     # Check if runtime_data is set, which indicates successful setup

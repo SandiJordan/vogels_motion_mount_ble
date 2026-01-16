@@ -1,5 +1,6 @@
 """Button entities to define actions for Vogels Motion Mount BLE entities."""
 
+import logging
 from dataclasses import replace
 from typing import Any
 
@@ -13,6 +14,8 @@ from . import VogelsMotionMountNextBleConfigEntry
 from .base import VogelsMotionMountNextBleBaseEntity, VogelsMotionMountNextBlePresetBaseEntity
 from .coordinator import VogelsMotionMountNextBleCoordinator
 from .data import VogelsMotionMountPresetData
+
+_LOGGER = logging.getLogger(__name__)
 
 
 async def async_setup_entry(
@@ -63,7 +66,12 @@ class ConnectionSwitch(VogelsMotionMountNextBleBaseEntity, SwitchEntity):
 
     async def async_turn_on(self, **_: Any) -> None:
         """Connect to the device."""
-        await self.coordinator.connect()
+        try:
+            await self.coordinator.connect()
+        except Exception as err:
+            # Connection failed, but coordinator has already updated state to connected=False
+            # Log the error but don't raise - the state is already correct via coordinator listeners
+            _LOGGER.debug("Connection attempt failed but state updated: %s", err)
 
     async def async_turn_off(self, **_: Any) -> None:
         """Disconnect from the device."""

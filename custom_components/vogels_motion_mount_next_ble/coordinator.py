@@ -6,26 +6,26 @@ from dataclasses import replace
 from datetime import timedelta
 import logging
 
-from bleak.backends.device import BLEDevice
-from bleak_retry_connector import BleakConnectionError, BleakNotFoundError, BleakOutOfConnectionSlotsError
+from bleak.backends.device import BLEDevice  # type: ignore[import-untyped]
+from bleak_retry_connector import BleakConnectionError, BleakNotFoundError, BleakOutOfConnectionSlotsError  # type: ignore[import-untyped]
 
-from homeassistant.components import bluetooth
-from homeassistant.components.bluetooth import (
+from homeassistant.components import bluetooth  # type: ignore[import-untyped]
+from homeassistant.components.bluetooth import (  # type: ignore[import-untyped]
     BluetoothChange,
     BluetoothScanningMode,
     BluetoothServiceInfoBleak,
 )
-from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ConfigEntryAuthFailed, ServiceValidationError
-from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
-from homeassistant.util import dt as dt_util
+from homeassistant.config_entries import ConfigEntry  # type: ignore[import-untyped]
+from homeassistant.core import HomeAssistant  # type: ignore[import-untyped]
+from homeassistant.exceptions import ConfigEntryAuthFailed, ServiceValidationError  # type: ignore[import-untyped]
+from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed  # type: ignore[import-untyped]
+from homeassistant.util import dt as dt_util  # type: ignore[import-untyped]
 
 from .client import (
     VogelsMotionMountBluetoothClient,
     VogelsMotionMountClientAuthenticationError,
 )
-from .const import CONF_MAC, CONF_PIN, CONF_BLE_DISCONNECT_TIMEOUT, DEFAULT_BLE_DISCONNECT_TIMEOUT, DOMAIN
+from .const import CONF_MAC, CONF_PIN, CONF_BLE_DISCONNECT_TIMEOUT, CONF_BLE_DISCOVERY_TIMEOUT, DEFAULT_BLE_DISCONNECT_TIMEOUT, DEFAULT_BLE_DISCOVERY_TIMEOUT, DOMAIN
 from .data import (
     VogelsMotionMountAuthenticationType,
     VogelsMotionMountAutoMoveType,
@@ -34,6 +34,8 @@ from .data import (
     VogelsMotionMountPermissions,
     VogelsMotionMountPinSettings,
     VogelsMotionMountPreset,
+    VogelsMotionMountPresetData,
+    VogelsMotionMountVersions,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -73,40 +75,108 @@ class VogelsMotionMountNextBleCoordinator(DataUpdateCoordinator[VogelsMotionMoun
         self._last_disconnect_time = None
         self._last_connection_attempt_time = None
         self._load_ble_disconnect_timeout(config_entry)
+        self._load_ble_discovery_timeout(config_entry)
         self._last_activity_time = dt_util.utcnow()
         self._disconnect_timer_handle = None
         self._is_discovered = False  # Track if device is discovered (seen via BLE scan)
+        self._last_discovery_time = None  # Track timestamp of last discovery
+        self._rediscovery_timer_handle = None  # Timer for triggering rediscovery scans
+        self._last_scan_request_time = None  # Track when we last requested a scan
 
         # Create client
         self._client = VogelsMotionMountBluetoothClient(
+            hass=hass,
+            address=device.address,
             pin=config_entry.data.get(CONF_PIN),
-            device=device,
-            permission_callback=self._permissions_changed,
+            permission_callback=self._permissions_changed,  # type: ignore[arg-type]
             connection_callback=self._connection_changed,
             distance_callback=self._distance_changed,
             rotation_callback=self._rotation_changed,
         )
 
         # Initialise DataUpdateCoordinator
+        # NOTE: update_interval is intentionally not set here (None).
+        # We only fetch device data when explicitly requested via connect() or on manual refresh.
+        # BLE discovery status is maintained through BLE callbacks, not periodic polling.
+        # This prevents continuous connection attempts when the device is disconnected.
         super().__init__(
             hass,
             _LOGGER,
             name=config_entry.title,
             config_entry=config_entry,
-            update_interval=timedelta(minutes=5),
         )
+        
+        # Initialize with minimal disconnected data so entities show up with default values
+        # instead of being unavailable until first connection
+        empty_presets = [
+            VogelsMotionMountPreset(index=i, data=VogelsMotionMountPresetData(
+                name=f"Preset {i+1}",
+                distance=0,
+                rotation=0,
+            )) for i in range(7)
+        ]
+        disconnected_permissions = VogelsMotionMountPermissions(
+            auth_status=None,  # type: ignore[arg-type]
+            change_settings=True,
+            change_default_position=True,
+            change_name=True,
+            change_presets=True,
+            change_tv_on_off_detection=True,
+            disable_channel=True,
+            start_calibration=True,
+        )
+        initial_data = VogelsMotionMountData(
+            automove=None,
+            available=False,  # Will be set to True when discovered
+            connected=False,
+            distance=0,
+            freeze_preset_index=0,
+            multi_pin_features=VogelsMotionMountMultiPinFeatures(
+                change_default_position=True,
+                change_name=True,
+                change_presets=True,
+                change_tv_on_off_detection=True,
+                disable_channel=True,
+                start_calibration=True,
+            ),
+            name=None,  # type: ignore[arg-type]
+            pin_setting=None,  # type: ignore[arg-type]
+            presets=empty_presets,
+            rotation=0,
+            tv_width=65,
+            versions=VogelsMotionMountVersions(
+                ceb_bl_version="",
+                mcp_bl_version="",
+                mcp_fw_version="",
+                mcp_hw_version="",
+            ),
+            permissions=disconnected_permissions,
+        )
+        self.async_set_updated_data(initial_data)
 
         # Setup listeners
         self._unsub_options_update_listener = unsub_options_update_listener
         self._unsub_unavailable_update_listener = bluetooth.async_track_unavailable(
-            hass, self._unavailable_callback, self.address, connectable=True
+            hass, self._unavailable_callback, self.address
         )
+        _LOGGER.info("Registered unavailable callback for device %s", self.address)
+        
+        # Register for ALL advertisements of our device (connectable or not)
+        # We check connectable status in the callback itself
         self._unsub_available_update_listener = bluetooth.async_register_callback(
             hass,
             self._available_callback,
-            {"address": self.address, "connectable": True},
+            {"address": self.address},
             BluetoothScanningMode.ACTIVE,
         )
+        _LOGGER.info("Registered available callback for device %s with active scanning", self.address)
+
+        # Home Assistant bluetooth integration will handle scanning automatically
+        # Just log that we're ready to receive advertisements
+        _LOGGER.info("Coordinator initialized for device %s, waiting for BLE advertisements", self.address)
+
+        # Start the rediscovery scan timer
+        self._schedule_rediscovery_scan()
 
         _LOGGER.debug("Coordinator startup finished")
 
@@ -121,39 +191,57 @@ class VogelsMotionMountNextBleCoordinator(DataUpdateCoordinator[VogelsMotionMoun
             "BLE disconnect timeout set to %d minutes", timeout_minutes
         )
 
+    def _load_ble_discovery_timeout(self, config_entry: ConfigEntry) -> None:
+        """Load BLE discovery timeout from config."""
+        timeout_seconds = (
+            config_entry.options.get(CONF_BLE_DISCOVERY_TIMEOUT)
+            or config_entry.data.get(CONF_BLE_DISCOVERY_TIMEOUT)
+            or DEFAULT_BLE_DISCOVERY_TIMEOUT
+        )
+        self._ble_discovery_timeout_seconds = timeout_seconds
+        _LOGGER.debug(
+            "BLE discovery timeout set to %d seconds", timeout_seconds
+        )
+
     async def async_config_entry_first_refresh(self) -> None:
         """Perform the first refresh with a timeout to avoid blocking bootstrap.
         
         If the device is not immediately available, we still allow setup to proceed
-        so platforms can be created. The coordinator will continue to retry on the
-        periodic update schedule.
+        so platforms can be created. The coordinator will continue to retry when
+        the user manually connects.
+        
+        NOTE: We skip the initial refresh because:
+        1. We initialize with default disconnected data in __init__
+        2. Entities are already available with default values
+        3. We don't have periodic updates enabled
+        4. Device will only connect when user clicks the Connect button
         """
-        try:
-            await asyncio.wait_for(
-                self.async_refresh(),
-                timeout=60.0
-            )
-        except asyncio.TimeoutError:
-            _LOGGER.warning(
-                "First data refresh for %s timed out. Device may not be available yet. "
-                "Setup will continue and coordinator will retry on scheduled updates.",
-                self.address,
-            )
-        except UpdateFailed as err:
-            _LOGGER.warning(
-                "First data refresh for %s failed: %s. "
-                "Setup will continue and coordinator will retry on scheduled updates.",
-                self.address,
-                str(err),
-            )
+        # Don't try to fetch data on startup - wait for manual connect
+        pass
 
     def _available_callback(
         self, info: BluetoothServiceInfoBleak, change: BluetoothChange
     ) -> None:
         # Device is available (discovered via Bluetooth scan)
         # However, we don't auto-connect anymore. User must manually click the Connect button.
-        _LOGGER.debug("%s is discovered, waiting for manual connection", info.address)
-        self._is_discovered = True  # Mark device as discovered
+        _LOGGER.info(
+            "%s advertisement received: connectable=%s, rssi=%s",
+            info.address,
+            info.connectable,
+            info.rssi,
+        )
+        
+        # Mark device as discovered when we see any advertisement from it
+        if not self._is_discovered:
+            _LOGGER.info("%s is now marked as discovered (connectable=%s)", info.address, info.connectable)
+            self._is_discovered = True  # Mark device as discovered
+            # Update data to mark as available
+            if self.data is not None:
+                self.async_set_updated_data(replace(self.data, available=True))
+            self.async_update_listeners()  # Notify entities of discovery state change
+        
+        # Always update last discovery time when we see any advertisement
+        self._last_discovery_time = dt_util.utcnow()
         self._reconnect_attempts = 0  # Reset retry counter
 
     def _cancel_disconnect_timer(self) -> None:
@@ -186,15 +274,70 @@ class VogelsMotionMountNextBleCoordinator(DataUpdateCoordinator[VogelsMotionMoun
         self._disconnect_timer_handle = None
         self.hass.async_create_task(self._client.disconnect())
 
+    def _cancel_rediscovery_timer(self) -> None:
+        """Cancel the rediscovery timer if active."""
+        if self._rediscovery_timer_handle is not None:
+            self._rediscovery_timer_handle.cancel()
+            self._rediscovery_timer_handle = None
+
+    def _schedule_rediscovery_scan(self) -> None:
+        """Schedule a rediscovery scan check in 30 seconds."""
+        self._cancel_rediscovery_timer()
+        self._rediscovery_timer_handle = self.hass.loop.call_later(
+            30,  # Check every 30 seconds
+            self._trigger_rediscovery_scan,
+        )
+
+    def _trigger_rediscovery_scan(self) -> None:
+        """Check if device is still not discovered or has timed out."""
+        self._rediscovery_timer_handle = None
+        
+        # Check if we haven't seen an advertisement for too long
+        if self._is_discovered and self._last_discovery_time is not None:
+            time_since_last_discovery = (dt_util.utcnow() - self._last_discovery_time).total_seconds()
+            if time_since_last_discovery > self._ble_discovery_timeout_seconds:
+                _LOGGER.info(
+                    "Device %s not seen for %d seconds (timeout=%d), marking as not discovered",
+                    self.address,
+                    int(time_since_last_discovery),
+                    self._ble_discovery_timeout_seconds,
+                )
+                self._is_discovered = False
+                self._last_discovery_time = None
+                # Update data to mark as unavailable
+                if self.data is not None:
+                    self.async_set_updated_data(replace(self.data, available=False))
+                self.async_update_listeners()
+        
+        # Just check if device is discovered, don't try to request scans
+        # Home Assistant bluetooth integration handles scanning automatically
+        if not self.is_discovered:
+            _LOGGER.debug(
+                "Device %s is not discovered, waiting for BLE advertisement",
+                self.address
+            )
+        else:
+            _LOGGER.debug("Device %s is discovered", self.address)
+        
+        # Reschedule the check
+        self._schedule_rediscovery_scan()
+
     def _unavailable_callback(self, info: BluetoothServiceInfoBleak) -> None:
         _LOGGER.debug("%s is no longer seen", info.address)
-        self._is_discovered = False  # Mark device as not discovered
+        if self._is_discovered or self._last_discovery_time is not None:
+            self._is_discovered = False  # Mark device as not discovered
+            self._last_discovery_time = None  # Clear discovery timestamp
+            # Update data to mark as unavailable
+            if self.data is not None:
+                self.async_set_updated_data(replace(self.data, available=False))
+            self.async_update_listeners()  # Notify entities of discovery state change
         self._set_unavailable()
 
     async def unload(self):
         """Disconnect and unload."""
         _LOGGER.debug("unload coordinator")
         self._cancel_disconnect_timer()
+        self._cancel_rediscovery_timer()
         self._unsub_options_update_listener()
         self._unsub_unavailable_update_listener()
         self._unsub_available_update_listener()
@@ -215,12 +358,68 @@ class VogelsMotionMountNextBleCoordinator(DataUpdateCoordinator[VogelsMotionMoun
     async def connect(self):
         """Connect to device."""
         _LOGGER.info("Manually connecting to %s", self.address)
+        self._last_connection_attempt_time = dt_util.utcnow()  # Track connection attempt
         try:
             await self._client._connect()
             _LOGGER.info("Successfully connected to %s", self.address)
             await self.async_request_refresh()
         except Exception as err:
             _LOGGER.error("Failed to manually connect to %s: %s", self.address, err)
+            # Ensure the connection state is updated to False on failure
+            # Create a minimal disconnected state if we don't have data yet
+            if self.data is not None:
+                self.async_set_updated_data(replace(self.data, connected=False))
+            else:
+                # Initialize with disconnected state if no data exists yet
+                # Use permissive permissions for disconnected state
+                disconnected_permissions = VogelsMotionMountPermissions(
+                    auth_status=None,  # type: ignore[arg-type]
+                    change_settings=True,
+                    change_default_position=True,
+                    change_name=True,
+                    change_presets=True,
+                    change_tv_on_off_detection=True,
+                    disable_channel=True,
+                    start_calibration=True,
+                )
+                # Initialize 7 empty presets (as per CHAR_PRESET_UUIDS)
+                empty_presets = [
+                    VogelsMotionMountPreset(index=i, data=VogelsMotionMountPresetData(
+                        name=f"Preset {i+1}",
+                        distance=0,
+                        rotation=0,
+                    )) for i in range(7)
+                ]
+                disconnected_data = VogelsMotionMountData(
+                    automove=None,
+                    available=True,
+                    connected=False,
+                    distance=0,
+                    freeze_preset_index=0,
+                    multi_pin_features=VogelsMotionMountMultiPinFeatures(
+                        change_default_position=True,
+                        change_name=True,
+                        change_presets=True,
+                        change_tv_on_off_detection=True,
+                        disable_channel=True,
+                        start_calibration=True,
+                    ),
+                    name=None,  # type: ignore[arg-type]
+                    pin_setting=None,  # type: ignore[arg-type]
+                    presets=empty_presets,
+                    rotation=0,
+                    tv_width=65,
+                    versions=VogelsMotionMountVersions(
+                        ceb_bl_version="",
+                        mcp_bl_version="",
+                        mcp_fw_version="",
+                        mcp_hw_version="",
+                    ),
+                    permissions=disconnected_permissions,
+                )
+                self.async_set_updated_data(disconnected_data)
+            # Force immediate entity update
+            self.async_update_listeners()
             raise ServiceValidationError(
                 translation_key="error_device_not_found",
                 translation_placeholders={"error": str(err)},
@@ -244,7 +443,21 @@ class VogelsMotionMountNextBleCoordinator(DataUpdateCoordinator[VogelsMotionMoun
 
     @property
     def is_discovered(self) -> bool:
-        """Return whether the device has been discovered via Bluetooth scan."""
+        """Return whether the device has been discovered via Bluetooth scan.
+        
+        A device is considered discovered if:
+        1. It's currently connected (we're actively using it), OR
+        2. We've received an advertisement from it (doesn't timeout)
+        
+        The device is only marked as NOT discovered if we explicitly receive
+        an unavailable callback (device removed from BLE).
+        """
+        # If currently connected, device is definitely discovered
+        if self._client.is_connected:
+            return True
+        
+        # Device is discovered if we've seen it via BLE at least once
+        # (flag is only cleared by unavailable callback)
         return self._is_discovered
 
     # -------------------------------
@@ -482,9 +695,9 @@ class VogelsMotionMountNextBleCoordinator(DataUpdateCoordinator[VogelsMotionMoun
                     connected=self._client.is_connected,
                     distance=await self._client.read_distance(),
                     freeze_preset_index=await self._client.read_freeze_preset_index(),
-                    multi_pin_features=None,
-                    name=None,
-                    pin_setting=None,
+                    multi_pin_features=None,  # type: ignore[arg-type]
+                    name=None,  # type: ignore[arg-type]
+                    pin_setting=None,  # type: ignore[arg-type]
                     presets=await self._client.read_presets(),
                     rotation=await self._client.read_rotation(),
                     tv_width=65,

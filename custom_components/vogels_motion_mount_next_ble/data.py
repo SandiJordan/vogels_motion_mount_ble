@@ -35,6 +35,7 @@ class VogelsMotionMountAutoMoveType(Enum):
     Hdmi_4_Off = 13
     Hdmi_5_On = 16
     Hdmi_5_Off = 17
+    Reserved_0x100 = 256
 
 
 @dataclass
@@ -88,7 +89,7 @@ class VogelsMotionMountVersions:
 class VogelsMotionMountData:
     """Holds the data of the device."""
 
-    automove: VogelsMotionMountAutoMoveType
+    automove: VogelsMotionMountAutoMoveType | None
     available: bool
     connected: bool
     distance: int

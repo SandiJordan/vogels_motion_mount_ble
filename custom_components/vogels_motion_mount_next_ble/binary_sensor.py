@@ -20,28 +20,8 @@ async def async_setup_entry(
     """Set up the connection Sensors."""
     coordinator: VogelsMotionMountNextBleCoordinator = config_entry.runtime_data
     async_add_entities([
-        DiscoveredBinarySensor(coordinator),
         ConnectionBinarySensor(coordinator),
     ])
-
-
-class DiscoveredBinarySensor(VogelsMotionMountNextBleBaseEntity, BinarySensorEntity):
-    """Sensor to indicate if the Vogels Motion Mount has been discovered via Bluetooth."""
-
-    _attr_unique_id = "discovered"
-    _attr_translation_key = _attr_unique_id
-    _attr_device_class = BinarySensorDeviceClass.PRESENCE
-
-    @property
-    def is_on(self):
-        """Return if the MotionMount is discovered."""
-        # Device is discovered if we have any data or if it's available
-        return self.coordinator.data is not None and self.coordinator.data.available
-
-    @property
-    def icon(self):
-        """Return icon."""
-        return "mdi:bluetooth" if self.is_on else "mdi:bluetooth-off"
 
 
 class ConnectionBinarySensor(VogelsMotionMountNextBleBaseEntity, BinarySensorEntity):

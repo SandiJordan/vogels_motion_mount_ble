@@ -149,9 +149,6 @@
   },
   "entity": {
     "binary_sensor": {
-      "discovered": {
-        "name": "Discovered"
-      },
       "connection": {
         "name": "Connection"
       }
