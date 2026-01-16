@@ -289,35 +289,14 @@ class VogelsMotionMountNextBleCoordinator(DataUpdateCoordinator[VogelsMotionMoun
         )
 
     def _trigger_rediscovery_scan(self) -> None:
-        """Check if device is still not discovered or has timed out."""
+        """Periodic check of device discovery status (logging only)."""
         self._rediscovery_timer_handle = None
         
-        # Check if we haven't seen an advertisement for too long
-        if self._is_discovered and self._last_discovery_time is not None:
-            time_since_last_discovery = (dt_util.utcnow() - self._last_discovery_time).total_seconds()
-            if time_since_last_discovery > self._ble_discovery_timeout_seconds:
-                _LOGGER.info(
-                    "Device %s not seen for %d seconds (timeout=%d), marking as not discovered",
-                    self.address,
-                    int(time_since_last_discovery),
-                    self._ble_discovery_timeout_seconds,
-                )
-                self._is_discovered = False
-                self._last_discovery_time = None
-                # Update data to mark as unavailable
-                if self.data is not None:
-                    self.async_set_updated_data(replace(self.data, available=False))
-                self.async_update_listeners()
-        
-        # Just check if device is discovered, don't try to request scans
-        # Home Assistant bluetooth integration handles scanning automatically
-        if not self.is_discovered:
-            _LOGGER.debug(
-                "Device %s is not discovered, waiting for BLE advertisement",
-                self.address
-            )
+        # Just log current discovery status for debugging
+        if self._is_discovered:
+            _LOGGER.debug("Device %s is still discovered", self.address)
         else:
-            _LOGGER.debug("Device %s is discovered", self.address)
+            _LOGGER.debug("Device %s is not discovered", self.address)
         
         # Reschedule the check
         self._schedule_rediscovery_scan()

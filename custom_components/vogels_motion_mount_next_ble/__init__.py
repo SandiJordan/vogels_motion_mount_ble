@@ -84,24 +84,7 @@ async def async_setup_entry(
             config_entry.data[CONF_MAC]
         )
         
-        # Trigger an active scan to discover the device
-        # First, request active scanning for this address
-        def _ble_discovery_callback(
-            info: BluetoothServiceInfoBleak, change: BluetoothChange
-        ):
-            pass  # Just need to trigger active scanning
-        
-        _LOGGER.info("Requesting active BLE scan for device %s", config_entry.data[CONF_MAC])
-        unregister_discovery = bluetooth.async_register_callback(
-            hass,
-            _ble_discovery_callback,
-            {"address": config_entry.data[CONF_MAC]},
-            BluetoothScanningMode.ACTIVE,
-        )
-        # Keep this callback registered to maintain active scanning
-        entry_data["DISCOVERY_CALLBACK"] = unregister_discovery
-        
-        # Also trigger rediscovery
+        # Trigger rediscovery to make sure Home Assistant scans for this device
         bluetooth.async_rediscover_address(hass, config_entry.data[CONF_MAC])
 
         if entry_data.get(BLE_CALLBACK) is None:
@@ -190,12 +173,6 @@ async def async_unload_entry(
         if unregister_ble_callback:
             _LOGGER.debug("unregister_ble_callback")
             unregister_ble_callback()
-        
-        # Also clean up discovery callback if it was registered
-        unregister_discovery = entry_data.get("DISCOVERY_CALLBACK")
-        if unregister_discovery:
-            _LOGGER.debug("unregister_discovery_callback")
-            unregister_discovery()
 
     # Only unload platforms if the entry was actually loaded
     # Check if runtime_data is set, which indicates successful setup

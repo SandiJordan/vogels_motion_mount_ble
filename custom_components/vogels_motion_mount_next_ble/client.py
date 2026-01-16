@@ -19,27 +19,17 @@ from homeassistant.core import HomeAssistant
 from homeassistant.components import bluetooth
 
 from .const import (
-    #CHAR_AUTHENTICATE_UUID,
     CHAR_AUTOMOVE_UUID,
     CHAR_CALIBRATE_UUID,
-    #CHAR_CHANGE_PIN_UUID,
     CHAR_DISABLE_CHANNEL,
     CHAR_DISTANCE_UUID,
     CHAR_FREEZE_UUID,
-    #CHAR_MULTI_PIN_FEATURES_UUID,
-    #CHAR_NAME_UUID,
-    #CHAR_PIN_CHECK_UUID,
-    #CHAR_PIN_SETTINGS_UUID,
     CHAR_PRESET_NAMES_UUIDS,
-    #CHAR_PRESET_UUID,
     CHAR_PRESET_UUIDS,
     CHAR_ROTATION_UUID,
     CHAR_VERSIONS_CEB_UUID,
-    #CHAR_VERSIONS_MCP_UUID,
 )
 from .data import (
-    #VogelsMotionMountAuthenticationStatus,
-    #VogelsMotionMountAuthenticationType,
     VogelsMotionMountAutoMoveType,
     VogelsMotionMountPreset,
     VogelsMotionMountPresetData,
