@@ -21,7 +21,7 @@ Use cases:
 
 ## Supported device(s)
 
-- [Vogel’s MotionMount NEXT 7355]([https://www.vogels.com/de-de/c/tvm-7675-elektrische-tv-wandhalterung-schwarz](https://www.vogels.com/en-gb/c/motionmount-next-7355-gb-full-motion-motorised-tv-wall-mount))
+- [Vogel’s MotionMount NEXT 7355](https://www.vogels.com/en-gb/c/motionmount-next-7355-gb-full-motion-motorised-tv-wall-mount)
 
 ## Requirements & prerequisites
 
