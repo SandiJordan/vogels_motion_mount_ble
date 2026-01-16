@@ -1,2 +1,12 @@
 **/__pycache__
 .DS_Store
+
+# Ignore everything
+/*
+!custom_components/
+!.gitignore
+!.github/
+
+# In custom_components, ignore everything except vogels_motion_mount_next_ble
+/custom_components/*
+!/custom_components/vogels_motion_mount_next_ble/
