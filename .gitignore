@@ -4,9 +4,11 @@
 # Ignore everything
 /*
 !custom_components/
-!.gitignore
 !README.md
 !.github/
+
+# In .github, ignore workflows
+.github/workflows/
 
 # In custom_components, ignore everything except vogels_motion_mount_next_ble
 /custom_components/*
